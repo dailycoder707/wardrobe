@@ -1,0 +1,1972 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 3,
+    "identityHash": "222d0add6911a5b3ed6c1491347ce7cc",
+    "entities": [
+      {
+        "tableName": "categories",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `name` TEXT NOT NULL, `parentId` INTEGER, `level` TEXT NOT NULL, FOREIGN KEY(`parentId`) REFERENCES `categories`(`id`) ON UPDATE NO ACTION ON DELETE SET NULL )",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "parentId",
+            "columnName": "parentId",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "level",
+            "columnName": "level",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_categories_parentId",
+            "unique": false,
+            "columnNames": [
+              "parentId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_categories_parentId` ON `${TABLE_NAME}` (`parentId`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "categories",
+            "onDelete": "SET NULL",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "parentId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "colors",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `name` TEXT NOT NULL, `hexValue` TEXT NOT NULL)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "hexValue",
+            "columnName": "hexValue",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        }
+      },
+      {
+        "tableName": "materials",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `name` TEXT NOT NULL)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_materials_name",
+            "unique": true,
+            "columnNames": [
+              "name"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_materials_name` ON `${TABLE_NAME}` (`name`)"
+          }
+        ]
+      },
+      {
+        "tableName": "brands",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `name` TEXT NOT NULL, `logoUri` TEXT)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "logoUri",
+            "columnName": "logoUri",
+            "affinity": "TEXT"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_brands_name",
+            "unique": true,
+            "columnNames": [
+              "name"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_brands_name` ON `${TABLE_NAME}` (`name`)"
+          }
+        ]
+      },
+      {
+        "tableName": "tags",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `name` TEXT NOT NULL)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_tags_name",
+            "unique": true,
+            "columnNames": [
+              "name"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_tags_name` ON `${TABLE_NAME}` (`name`)"
+          }
+        ]
+      },
+      {
+        "tableName": "occasions",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `name` TEXT NOT NULL)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_occasions_name",
+            "unique": true,
+            "columnNames": [
+              "name"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_occasions_name` ON `${TABLE_NAME}` (`name`)"
+          }
+        ]
+      },
+      {
+        "tableName": "garments",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `name` TEXT, `categoryId` INTEGER NOT NULL, `primaryColorId` INTEGER, `pattern` TEXT, `fit` TEXT, `length` TEXT, `sleeveLength` TEXT, `warmthRating` INTEGER, `breathabilityRating` INTEGER, `brandId` INTEGER, `size` TEXT, `price` REAL, `currencyCode` TEXT, `purchaseDate` TEXT, `condition` TEXT, `careNotes` TEXT, `status` TEXT NOT NULL, `isReviewed` INTEGER NOT NULL, `isFavorite` INTEGER NOT NULL, `isInLaundry` INTEGER NOT NULL, `searchText` TEXT NOT NULL, `createdAt` INTEGER NOT NULL, `updatedAt` INTEGER NOT NULL, FOREIGN KEY(`categoryId`) REFERENCES `categories`(`id`) ON UPDATE NO ACTION ON DELETE RESTRICT , FOREIGN KEY(`brandId`) REFERENCES `brands`(`id`) ON UPDATE NO ACTION ON DELETE SET NULL , FOREIGN KEY(`primaryColorId`) REFERENCES `colors`(`id`) ON UPDATE NO ACTION ON DELETE SET NULL )",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "categoryId",
+            "columnName": "categoryId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "primaryColorId",
+            "columnName": "primaryColorId",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "pattern",
+            "columnName": "pattern",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "fit",
+            "columnName": "fit",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "length",
+            "columnName": "length",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "sleeveLength",
+            "columnName": "sleeveLength",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "warmthRating",
+            "columnName": "warmthRating",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "breathabilityRating",
+            "columnName": "breathabilityRating",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "brandId",
+            "columnName": "brandId",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "size",
+            "columnName": "size",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "price",
+            "columnName": "price",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "currencyCode",
+            "columnName": "currencyCode",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "purchaseDate",
+            "columnName": "purchaseDate",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "condition",
+            "columnName": "condition",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "careNotes",
+            "columnName": "careNotes",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "status",
+            "columnName": "status",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isReviewed",
+            "columnName": "isReviewed",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isFavorite",
+            "columnName": "isFavorite",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isInLaundry",
+            "columnName": "isInLaundry",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "searchText",
+            "columnName": "searchText",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdAt",
+            "columnName": "createdAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "updatedAt",
+            "columnName": "updatedAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_garments_categoryId",
+            "unique": false,
+            "columnNames": [
+              "categoryId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_garments_categoryId` ON `${TABLE_NAME}` (`categoryId`)"
+          },
+          {
+            "name": "index_garments_status",
+            "unique": false,
+            "columnNames": [
+              "status"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_garments_status` ON `${TABLE_NAME}` (`status`)"
+          },
+          {
+            "name": "index_garments_brandId",
+            "unique": false,
+            "columnNames": [
+              "brandId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_garments_brandId` ON `${TABLE_NAME}` (`brandId`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "categories",
+            "onDelete": "RESTRICT",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "categoryId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          },
+          {
+            "table": "brands",
+            "onDelete": "SET NULL",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "brandId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          },
+          {
+            "table": "colors",
+            "onDelete": "SET NULL",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "primaryColorId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "garment_color_palette",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`garmentId` INTEGER NOT NULL, `colorId` INTEGER NOT NULL, `weightPercent` INTEGER NOT NULL, PRIMARY KEY(`garmentId`, `colorId`), FOREIGN KEY(`garmentId`) REFERENCES `garments`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE , FOREIGN KEY(`colorId`) REFERENCES `colors`(`id`) ON UPDATE NO ACTION ON DELETE RESTRICT )",
+        "fields": [
+          {
+            "fieldPath": "garmentId",
+            "columnName": "garmentId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "colorId",
+            "columnName": "colorId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "weightPercent",
+            "columnName": "weightPercent",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "garmentId",
+            "colorId"
+          ]
+        },
+        "foreignKeys": [
+          {
+            "table": "garments",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "garmentId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          },
+          {
+            "table": "colors",
+            "onDelete": "RESTRICT",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "colorId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "garment_materials",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`garmentId` INTEGER NOT NULL, `materialId` INTEGER NOT NULL, `percentage` INTEGER, PRIMARY KEY(`garmentId`, `materialId`), FOREIGN KEY(`garmentId`) REFERENCES `garments`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE , FOREIGN KEY(`materialId`) REFERENCES `materials`(`id`) ON UPDATE NO ACTION ON DELETE RESTRICT )",
+        "fields": [
+          {
+            "fieldPath": "garmentId",
+            "columnName": "garmentId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "materialId",
+            "columnName": "materialId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "percentage",
+            "columnName": "percentage",
+            "affinity": "INTEGER"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "garmentId",
+            "materialId"
+          ]
+        },
+        "foreignKeys": [
+          {
+            "table": "garments",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "garmentId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          },
+          {
+            "table": "materials",
+            "onDelete": "RESTRICT",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "materialId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "garment_tags",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`garmentId` INTEGER NOT NULL, `tagId` INTEGER NOT NULL, PRIMARY KEY(`garmentId`, `tagId`), FOREIGN KEY(`garmentId`) REFERENCES `garments`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE , FOREIGN KEY(`tagId`) REFERENCES `tags`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "garmentId",
+            "columnName": "garmentId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "tagId",
+            "columnName": "tagId",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "garmentId",
+            "tagId"
+          ]
+        },
+        "foreignKeys": [
+          {
+            "table": "garments",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "garmentId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          },
+          {
+            "table": "tags",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "tagId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "garment_seasons",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`garmentId` INTEGER NOT NULL, `season` TEXT NOT NULL, PRIMARY KEY(`garmentId`, `season`), FOREIGN KEY(`garmentId`) REFERENCES `garments`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "garmentId",
+            "columnName": "garmentId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "season",
+            "columnName": "season",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "garmentId",
+            "season"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_garment_seasons_season",
+            "unique": false,
+            "columnNames": [
+              "season"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_garment_seasons_season` ON `${TABLE_NAME}` (`season`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "garments",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "garmentId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "garment_dress_codes",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`garmentId` INTEGER NOT NULL, `dressCode` TEXT NOT NULL, PRIMARY KEY(`garmentId`, `dressCode`), FOREIGN KEY(`garmentId`) REFERENCES `garments`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "garmentId",
+            "columnName": "garmentId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "dressCode",
+            "columnName": "dressCode",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "garmentId",
+            "dressCode"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_garment_dress_codes_dressCode",
+            "unique": false,
+            "columnNames": [
+              "dressCode"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_garment_dress_codes_dressCode` ON `${TABLE_NAME}` (`dressCode`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "garments",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "garmentId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "outfits",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `name` TEXT, `occasionId` INTEGER, `source` TEXT NOT NULL, `isSaved` INTEGER NOT NULL, `isFavorite` INTEGER NOT NULL, `isArchived` INTEGER NOT NULL, `notes` TEXT, `mood` TEXT, `photoUri` TEXT, `createdAt` INTEGER NOT NULL, FOREIGN KEY(`occasionId`) REFERENCES `occasions`(`id`) ON UPDATE NO ACTION ON DELETE SET NULL )",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "occasionId",
+            "columnName": "occasionId",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "source",
+            "columnName": "source",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isSaved",
+            "columnName": "isSaved",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isFavorite",
+            "columnName": "isFavorite",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isArchived",
+            "columnName": "isArchived",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "notes",
+            "columnName": "notes",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "mood",
+            "columnName": "mood",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "photoUri",
+            "columnName": "photoUri",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "createdAt",
+            "columnName": "createdAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_outfits_occasionId",
+            "unique": false,
+            "columnNames": [
+              "occasionId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_outfits_occasionId` ON `${TABLE_NAME}` (`occasionId`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "occasions",
+            "onDelete": "SET NULL",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "occasionId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "outfit_garments",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`outfitId` INTEGER NOT NULL, `layerSlot` INTEGER NOT NULL, `garmentId` INTEGER NOT NULL, PRIMARY KEY(`outfitId`, `layerSlot`), FOREIGN KEY(`outfitId`) REFERENCES `outfits`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE , FOREIGN KEY(`garmentId`) REFERENCES `garments`(`id`) ON UPDATE NO ACTION ON DELETE RESTRICT )",
+        "fields": [
+          {
+            "fieldPath": "outfitId",
+            "columnName": "outfitId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "layerSlot",
+            "columnName": "layerSlot",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "garmentId",
+            "columnName": "garmentId",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "outfitId",
+            "layerSlot"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_outfit_garments_garmentId",
+            "unique": false,
+            "columnNames": [
+              "garmentId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_outfit_garments_garmentId` ON `${TABLE_NAME}` (`garmentId`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "outfits",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "outfitId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          },
+          {
+            "table": "garments",
+            "onDelete": "RESTRICT",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "garmentId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "outfit_seasons",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`outfitId` INTEGER NOT NULL, `season` TEXT NOT NULL, PRIMARY KEY(`outfitId`, `season`), FOREIGN KEY(`outfitId`) REFERENCES `outfits`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "outfitId",
+            "columnName": "outfitId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "season",
+            "columnName": "season",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "outfitId",
+            "season"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_outfit_seasons_season",
+            "unique": false,
+            "columnNames": [
+              "season"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_outfit_seasons_season` ON `${TABLE_NAME}` (`season`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "outfits",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "outfitId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "outfit_dress_codes",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`outfitId` INTEGER NOT NULL, `dressCode` TEXT NOT NULL, PRIMARY KEY(`outfitId`, `dressCode`), FOREIGN KEY(`outfitId`) REFERENCES `outfits`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "outfitId",
+            "columnName": "outfitId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "dressCode",
+            "columnName": "dressCode",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "outfitId",
+            "dressCode"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_outfit_dress_codes_dressCode",
+            "unique": false,
+            "columnNames": [
+              "dressCode"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_outfit_dress_codes_dressCode` ON `${TABLE_NAME}` (`dressCode`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "outfits",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "outfitId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "outfit_tags",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`outfitId` INTEGER NOT NULL, `tagId` INTEGER NOT NULL, PRIMARY KEY(`outfitId`, `tagId`), FOREIGN KEY(`outfitId`) REFERENCES `outfits`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE , FOREIGN KEY(`tagId`) REFERENCES `tags`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "outfitId",
+            "columnName": "outfitId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "tagId",
+            "columnName": "tagId",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "outfitId",
+            "tagId"
+          ]
+        },
+        "foreignKeys": [
+          {
+            "table": "outfits",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "outfitId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          },
+          {
+            "table": "tags",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "tagId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "wear_events",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `date` TEXT NOT NULL, `garmentId` INTEGER, `outfitId` INTEGER, `weatherCacheId` INTEGER, `occasionId` INTEGER, `note` TEXT, `status` TEXT NOT NULL, `createdAt` INTEGER NOT NULL, FOREIGN KEY(`garmentId`) REFERENCES `garments`(`id`) ON UPDATE NO ACTION ON DELETE RESTRICT , FOREIGN KEY(`outfitId`) REFERENCES `outfits`(`id`) ON UPDATE NO ACTION ON DELETE RESTRICT , FOREIGN KEY(`weatherCacheId`) REFERENCES `weather_cache`(`id`) ON UPDATE NO ACTION ON DELETE SET NULL , FOREIGN KEY(`occasionId`) REFERENCES `occasions`(`id`) ON UPDATE NO ACTION ON DELETE SET NULL )",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "date",
+            "columnName": "date",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "garmentId",
+            "columnName": "garmentId",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "outfitId",
+            "columnName": "outfitId",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "weatherCacheId",
+            "columnName": "weatherCacheId",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "occasionId",
+            "columnName": "occasionId",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "note",
+            "columnName": "note",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "status",
+            "columnName": "status",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdAt",
+            "columnName": "createdAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_wear_events_date",
+            "unique": false,
+            "columnNames": [
+              "date"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_wear_events_date` ON `${TABLE_NAME}` (`date`)"
+          },
+          {
+            "name": "index_wear_events_garmentId",
+            "unique": false,
+            "columnNames": [
+              "garmentId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_wear_events_garmentId` ON `${TABLE_NAME}` (`garmentId`)"
+          },
+          {
+            "name": "index_wear_events_outfitId",
+            "unique": false,
+            "columnNames": [
+              "outfitId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_wear_events_outfitId` ON `${TABLE_NAME}` (`outfitId`)"
+          },
+          {
+            "name": "index_wear_events_status",
+            "unique": false,
+            "columnNames": [
+              "status"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_wear_events_status` ON `${TABLE_NAME}` (`status`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "garments",
+            "onDelete": "RESTRICT",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "garmentId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          },
+          {
+            "table": "outfits",
+            "onDelete": "RESTRICT",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "outfitId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          },
+          {
+            "table": "weather_cache",
+            "onDelete": "SET NULL",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "weatherCacheId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          },
+          {
+            "table": "occasions",
+            "onDelete": "SET NULL",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "occasionId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "style_rules",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `description` TEXT NOT NULL, `sourceType` TEXT NOT NULL, `sourceFeedbackId` INTEGER, `ruleType` TEXT NOT NULL, `parametersJson` TEXT NOT NULL, `isActive` INTEGER NOT NULL, `createdAt` INTEGER NOT NULL, FOREIGN KEY(`sourceFeedbackId`) REFERENCES `feedback`(`id`) ON UPDATE NO ACTION ON DELETE SET NULL )",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "description",
+            "columnName": "description",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sourceType",
+            "columnName": "sourceType",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sourceFeedbackId",
+            "columnName": "sourceFeedbackId",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "ruleType",
+            "columnName": "ruleType",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "parametersJson",
+            "columnName": "parametersJson",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isActive",
+            "columnName": "isActive",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdAt",
+            "columnName": "createdAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_style_rules_sourceFeedbackId",
+            "unique": false,
+            "columnNames": [
+              "sourceFeedbackId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_style_rules_sourceFeedbackId` ON `${TABLE_NAME}` (`sourceFeedbackId`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "feedback",
+            "onDelete": "SET NULL",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "sourceFeedbackId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "feedback",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `targetType` TEXT NOT NULL, `targetGarmentId` INTEGER, `targetOutfitId` INTEGER, `vote` TEXT NOT NULL, `reasonCode` TEXT, `reasonText` TEXT, `generatedStyleRuleId` INTEGER, `createdAt` INTEGER NOT NULL, FOREIGN KEY(`targetGarmentId`) REFERENCES `garments`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE , FOREIGN KEY(`targetOutfitId`) REFERENCES `outfits`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE , FOREIGN KEY(`generatedStyleRuleId`) REFERENCES `style_rules`(`id`) ON UPDATE NO ACTION ON DELETE SET NULL )",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "targetType",
+            "columnName": "targetType",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "targetGarmentId",
+            "columnName": "targetGarmentId",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "targetOutfitId",
+            "columnName": "targetOutfitId",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "vote",
+            "columnName": "vote",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "reasonCode",
+            "columnName": "reasonCode",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "reasonText",
+            "columnName": "reasonText",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "generatedStyleRuleId",
+            "columnName": "generatedStyleRuleId",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "createdAt",
+            "columnName": "createdAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_feedback_targetGarmentId",
+            "unique": false,
+            "columnNames": [
+              "targetGarmentId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_feedback_targetGarmentId` ON `${TABLE_NAME}` (`targetGarmentId`)"
+          },
+          {
+            "name": "index_feedback_targetOutfitId",
+            "unique": false,
+            "columnNames": [
+              "targetOutfitId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_feedback_targetOutfitId` ON `${TABLE_NAME}` (`targetOutfitId`)"
+          },
+          {
+            "name": "index_feedback_generatedStyleRuleId",
+            "unique": false,
+            "columnNames": [
+              "generatedStyleRuleId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_feedback_generatedStyleRuleId` ON `${TABLE_NAME}` (`generatedStyleRuleId`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "garments",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "targetGarmentId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          },
+          {
+            "table": "outfits",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "targetOutfitId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          },
+          {
+            "table": "style_rules",
+            "onDelete": "SET NULL",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "generatedStyleRuleId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "style_profile_preferred_brands",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`brandId` INTEGER NOT NULL, PRIMARY KEY(`brandId`), FOREIGN KEY(`brandId`) REFERENCES `brands`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "brandId",
+            "columnName": "brandId",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "brandId"
+          ]
+        },
+        "foreignKeys": [
+          {
+            "table": "brands",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "brandId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "style_profile_avoided_categories",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`categoryId` INTEGER NOT NULL, PRIMARY KEY(`categoryId`), FOREIGN KEY(`categoryId`) REFERENCES `categories`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "categoryId",
+            "columnName": "categoryId",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "categoryId"
+          ]
+        },
+        "foreignKeys": [
+          {
+            "table": "categories",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "categoryId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "trips",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `name` TEXT, `destination` TEXT NOT NULL, `startDate` TEXT NOT NULL, `endDate` TEXT NOT NULL, `luggageSize` TEXT, `createdAt` INTEGER NOT NULL)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "destination",
+            "columnName": "destination",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "startDate",
+            "columnName": "startDate",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "endDate",
+            "columnName": "endDate",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "luggageSize",
+            "columnName": "luggageSize",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "createdAt",
+            "columnName": "createdAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        }
+      },
+      {
+        "tableName": "trip_activities",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `tripId` INTEGER NOT NULL, `activityTag` TEXT NOT NULL, FOREIGN KEY(`tripId`) REFERENCES `trips`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "tripId",
+            "columnName": "tripId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "activityTag",
+            "columnName": "activityTag",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_trip_activities_tripId",
+            "unique": false,
+            "columnNames": [
+              "tripId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_trip_activities_tripId` ON `${TABLE_NAME}` (`tripId`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "trips",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "tripId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "packing_list_items",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `tripId` INTEGER NOT NULL, `garmentId` INTEGER, `freeTextName` TEXT, `category` TEXT, `isPacked` INTEGER NOT NULL, `rationale` TEXT, FOREIGN KEY(`tripId`) REFERENCES `trips`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE , FOREIGN KEY(`garmentId`) REFERENCES `garments`(`id`) ON UPDATE NO ACTION ON DELETE SET NULL )",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "tripId",
+            "columnName": "tripId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "garmentId",
+            "columnName": "garmentId",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "freeTextName",
+            "columnName": "freeTextName",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "category",
+            "columnName": "category",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "isPacked",
+            "columnName": "isPacked",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "rationale",
+            "columnName": "rationale",
+            "affinity": "TEXT"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_packing_list_items_tripId",
+            "unique": false,
+            "columnNames": [
+              "tripId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_packing_list_items_tripId` ON `${TABLE_NAME}` (`tripId`)"
+          },
+          {
+            "name": "index_packing_list_items_garmentId",
+            "unique": false,
+            "columnNames": [
+              "garmentId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_packing_list_items_garmentId` ON `${TABLE_NAME}` (`garmentId`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "trips",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "tripId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          },
+          {
+            "table": "garments",
+            "onDelete": "SET NULL",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "garmentId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "wishlist_items",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `name` TEXT NOT NULL, `photoUri` TEXT, `notes` TEXT, `estimatedPrice` REAL, `currencyCode` TEXT, `categoryId` INTEGER, `brandId` INTEGER, `priority` INTEGER, `isPurchased` INTEGER NOT NULL, `createdAt` INTEGER NOT NULL, FOREIGN KEY(`categoryId`) REFERENCES `categories`(`id`) ON UPDATE NO ACTION ON DELETE SET NULL , FOREIGN KEY(`brandId`) REFERENCES `brands`(`id`) ON UPDATE NO ACTION ON DELETE SET NULL )",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "photoUri",
+            "columnName": "photoUri",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "notes",
+            "columnName": "notes",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "estimatedPrice",
+            "columnName": "estimatedPrice",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "currencyCode",
+            "columnName": "currencyCode",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "categoryId",
+            "columnName": "categoryId",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "brandId",
+            "columnName": "brandId",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "priority",
+            "columnName": "priority",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "isPurchased",
+            "columnName": "isPurchased",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdAt",
+            "columnName": "createdAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_wishlist_items_categoryId",
+            "unique": false,
+            "columnNames": [
+              "categoryId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_wishlist_items_categoryId` ON `${TABLE_NAME}` (`categoryId`)"
+          },
+          {
+            "name": "index_wishlist_items_brandId",
+            "unique": false,
+            "columnNames": [
+              "brandId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_wishlist_items_brandId` ON `${TABLE_NAME}` (`brandId`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "categories",
+            "onDelete": "SET NULL",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "categoryId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          },
+          {
+            "table": "brands",
+            "onDelete": "SET NULL",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "brandId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "weather_cache",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `latitude` REAL NOT NULL, `longitude` REAL NOT NULL, `date` TEXT NOT NULL, `fetchedAt` INTEGER NOT NULL, `tempHighC` REAL, `tempLowC` REAL, `apparentTempHighC` REAL, `apparentTempLowC` REAL, `precipitationProbabilityPercent` INTEGER, `windSpeedKph` REAL, `conditionCode` TEXT)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "latitude",
+            "columnName": "latitude",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "longitude",
+            "columnName": "longitude",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "date",
+            "columnName": "date",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "fetchedAt",
+            "columnName": "fetchedAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "tempHighC",
+            "columnName": "tempHighC",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "tempLowC",
+            "columnName": "tempLowC",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "apparentTempHighC",
+            "columnName": "apparentTempHighC",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "apparentTempLowC",
+            "columnName": "apparentTempLowC",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "precipitationProbabilityPercent",
+            "columnName": "precipitationProbabilityPercent",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "windSpeedKph",
+            "columnName": "windSpeedKph",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "conditionCode",
+            "columnName": "conditionCode",
+            "affinity": "TEXT"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_weather_cache_latitude_longitude_date",
+            "unique": true,
+            "columnNames": [
+              "latitude",
+              "longitude",
+              "date"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_weather_cache_latitude_longitude_date` ON `${TABLE_NAME}` (`latitude`, `longitude`, `date`)"
+          },
+          {
+            "name": "index_weather_cache_fetchedAt",
+            "unique": false,
+            "columnNames": [
+              "fetchedAt"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_weather_cache_fetchedAt` ON `${TABLE_NAME}` (`fetchedAt`)"
+          }
+        ]
+      },
+      {
+        "tableName": "image_metadata",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `garmentId` INTEGER NOT NULL, `type` TEXT NOT NULL, `filePath` TEXT NOT NULL, `width` INTEGER NOT NULL, `height` INTEGER NOT NULL, `fileSizeBytes` INTEGER NOT NULL, `format` TEXT NOT NULL, `checksum` TEXT, `createdAt` INTEGER NOT NULL, FOREIGN KEY(`garmentId`) REFERENCES `garments`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "garmentId",
+            "columnName": "garmentId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "type",
+            "columnName": "type",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "filePath",
+            "columnName": "filePath",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "width",
+            "columnName": "width",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "height",
+            "columnName": "height",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "fileSizeBytes",
+            "columnName": "fileSizeBytes",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "format",
+            "columnName": "format",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "checksum",
+            "columnName": "checksum",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "createdAt",
+            "columnName": "createdAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_image_metadata_garmentId",
+            "unique": false,
+            "columnNames": [
+              "garmentId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_image_metadata_garmentId` ON `${TABLE_NAME}` (`garmentId`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "garments",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "garmentId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "stats_cache",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`cacheKey` TEXT NOT NULL, `jsonValue` TEXT NOT NULL, `computedAt` INTEGER NOT NULL, PRIMARY KEY(`cacheKey`))",
+        "fields": [
+          {
+            "fieldPath": "cacheKey",
+            "columnName": "cacheKey",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "jsonValue",
+            "columnName": "jsonValue",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "computedAt",
+            "columnName": "computedAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "cacheKey"
+          ]
+        }
+      }
+    ],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '222d0add6911a5b3ed6c1491347ce7cc')"
+    ]
+  }
+}

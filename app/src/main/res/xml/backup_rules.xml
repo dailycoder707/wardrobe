@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Legacy Auto Backup rules (android:fullBackupContent), read on API 23–30.
+  On these API levels Android's Auto Backup mechanism only supports a single
+  cloud-backed backup — there is no separate "device transfer only" channel — so
+  everything the app stores locally is excluded here. This is deliberate per
+  Phase 1 Section 24: the app's own user-triggered Backup/Restore feature is the
+  only copy mechanism this product makes, and Android's Auto Backup would
+  otherwise silently upload the Room database and every garment photo to the
+  user's Google Drive account the first time the OS decides to run a backup.
+-->
+<full-backup-content>
+    <exclude domain="database" path="." />
+    <exclude domain="file" path="images/" />
+    <exclude domain="file" path="datastore/" />
+    <exclude domain="sharedpref" path="." />
+</full-backup-content>

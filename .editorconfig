@@ -1,0 +1,12 @@
+root = true
+
+[*.{kt,kts}]
+indent_size = 4
+max_line_length = 120
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+# Composable functions are PascalCase by Compose convention project-wide —
+# ktlint's standard:function-naming rule needs this explicit exemption the same
+# way detekt's FunctionNaming rule does (config/detekt/detekt.yml).
+ktlint_function_naming_ignore_when_annotated_with = Composable

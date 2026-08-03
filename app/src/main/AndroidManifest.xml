@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!-- Capture (Section 15/16, Phase 1) -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-feature
+        android:name="android.hardware.camera.any"
+        android:required="false" />
+
+    <!-- Gallery import fallback below API 33 — the Photo Picker (API 33+) needs no
+         runtime permission at all; this is only requested on older OS versions. -->
+    <uses-permission
+        android:name="android.permission.READ_EXTERNAL_STORAGE"
+        android:maxSdkVersion="32" />
+
+    <!-- Weather (Section 18) — optional, coarse only; a manually-set city in
+         Settings is the fallback for users who decline this. -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+
+    <!-- The single outbound network call this app ever makes: Open-Meteo. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <!-- Phase 8 — multi-device sync over the local Wi-Fi network only (NSD/
+         mDNS discovery + plain sockets, never the internet). CHANGE_WIFI_MULTICAST_STATE
+         is needed on some devices/routers for NsdManager's mDNS multicast
+         traffic to be delivered reliably. -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
+
+    <application
+        android:name=".WardrobeApplication"
+        android:allowBackup="true"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:fullBackupContent="@xml/backup_rules"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:label="@string/app_name"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.Wardrobe">
+
+        <!-- WardrobeApplication implements Configuration.Provider (Phase 5a) so
+             HiltWorkerFactory reaches BackupExportWorker/BackupRestoreWorker —
+             WorkManager's default, non-Hilt-aware initializer must be removed or
+             the two initialization paths conflict. Discovered via Lint's own
+             RemoveWorkManagerInitializer check, not assumed. -->
+        <provider
+            android:name="androidx.startup.InitializationProvider"
+            android:authorities="${applicationId}.androidx-startup"
+            android:exported="false"
+            tools:node="merge">
+            <meta-data
+                android:name="androidx.work.WorkManagerInitializer"
+                android:value="androidx.startup"
+                tools:node="remove" />
+        </provider>
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:theme="@style/Theme.Wardrobe">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+    </application>
+
+</manifest>

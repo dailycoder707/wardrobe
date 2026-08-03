@@ -1,0 +1,240 @@
+[versions]
+# --- Build tooling ---
+# Verified against Google's Maven metadata and Maven Central on 2026-08-01, by
+# actually running ./gradlew and fixing each real failure in turn (Constitution
+# rule 4) rather than assuming compatibility:
+#   1. AGP 9.2.1 made Kotlin support "built-in" and rejects the traditional
+#      org.jetbrains.kotlin.android/.jvm plugins outright.
+#   2. Pinning AGP back to 8.13.2 to keep those plugins then hit the opposite
+#      wall: the latest Hilt (2.60.1) requires AGP 9.0+, and the older Hilt that
+#      supports AGP 8.x (2.56.2) can't read Kotlin 2.4.10's class metadata
+#      format at all (hard KSP/kapt failure, not a warning).
+# Resolution: stay on AGP 9.2.1 + Hilt 2.60.1, and set `android.builtInKotlin=
+# false` in gradle.properties to opt back into the traditional Kotlin plugins
+# that KSP/Room/ktlint/detekt all still expect. Documented as a deliberate,
+# verified choice — see gradle.properties for the flag and its own caveat.
+agp = "9.2.1"
+kotlin = "2.4.10"
+ksp = "2.3.9"
+
+# --- Kotlin libraries ---
+kotlinxCoroutines = "1.11.0"
+kotlinxSerializationJson = "1.11.0"
+
+# --- AndroidX core ---
+# core-ktx 1.19.0 and lifecycle 2.11.0 both bumped their AAR metadata to require
+# compileSdk 37 / AGP 9.1+ (discovered by actually running the build, not
+# assumed). Pinned one minor back — 1.18.0 / 2.10.0 — to stay compatible with
+# AGP 8.13.2 (see the agp version comment). Still a current, fully-supported
+# release, not an old/abandoned one.
+coreKtx = "1.18.0"
+activityCompose = "1.13.0"
+lifecycle = "2.10.0"
+
+# --- Compose ---
+composeBom = "2026.06.01"
+
+# --- Navigation ---
+navigationCompose = "2.9.8"
+
+# --- Hilt / DI ---
+# Correction: an earlier lookup under-reported this as 2.56.2 (a Maven Central
+# search index quirk) — repo1.maven.org's own metadata confirms 2.60.1 is
+# latest, and it's needed anyway: 2.56.2 can't read Kotlin 2.4.10's class
+# metadata format (verified by actually running kapt/KSP and hitting exactly
+# that error).
+hiltAndroid = "2.60.1"
+# 1.4.0 additionally requires compileSdk 37 (discovered by actually running the
+# build); only platforms up to 36.1 are installed locally. Pinned to 1.3.0 —
+# still current and fully supported — to stay on compileSdk 36.
+hiltNavigationCompose = "1.3.0"
+
+# --- Room ---
+room = "2.8.4"
+
+# --- DataStore ---
+datastore = "1.2.1"
+
+# --- WorkManager ---
+workManager = "2.11.2"
+
+# --- CameraX ---
+cameraX = "1.6.1"
+
+# --- ML Kit (Phase 5b, ADR-008) ---
+# Beta on purpose, not by oversight: as of 2026-08-01 this is the only published
+# version of ML Kit Subject Segmentation on Google's Maven — there is no stable
+# release yet to pin instead. See TECHNICAL_DEBT.md and ADR-008: the choice of
+# ML Kit over a bundled TFLite model is a reasoned default, not a spike-verified
+# one (no device/real garment photos available in this environment to run
+# ADR-008's planned ~20-photo comparison against).
+mlkitSubjectSegmentation = "16.0.0-beta1"
+
+# Beta on purpose — Phase 10's Personal Virtual Try-On. Confirmed against
+# Google's real Maven group-index (dl.google.com/android/maven2/com/google/mlkit/
+# group-index.xml) on 2026-08-03: 18.0.0-beta5 is the latest published version
+# of com.google.mlkit:pose-detection; no stable release exists yet. On-device
+# inference only (bundled model, no Play Services round-trip, no network call)
+# — used only as a best-effort default-placement seeder, never load-bearing;
+# see phase-10-personal-virtual-tryon.md and ADR-011.
+mlkitPoseDetection = "18.0.0-beta5"
+
+# --- Coil ---
+coil = "3.5.0"
+
+# --- Paging (backing Closet Browse at scale — Phase 5c) ---
+paging = "3.5.0"
+
+# --- Networking (weather only, Section 18 of Phase 1) ---
+retrofit = "3.0.0"
+okhttp = "5.4.0"
+
+# --- Testing ---
+junit4 = "4.13.2"
+junit5 = "6.1.2"
+mockk = "1.14.11"
+turbine = "1.2.1"
+androidxTestJunit = "1.3.0"
+androidxTestEspresso = "3.7.0"
+androidxTestUiautomator = "2.4.0"
+robolectric = "4.16.1"
+
+# --- Static analysis / formatting ---
+ktlintGradle = "14.2.0"
+detekt = "1.23.8"
+
+# --- Baseline profiles ---
+profileinstaller = "1.4.1"
+macrobenchmark = "1.4.1"
+
+# --- Home-screen widget (feature:widget) ---
+glance = "1.1.1"
+
+# --- QR pairing (Phase 8, core:sync) ---
+# Pure Java, no Android/Play Services dependency — deliberately not ML Kit
+# Barcode Scanning, which would pull in Play Services for what a ~280KB pure
+# Java library already does; see phase-8-multi-device-sync.md's "Pairing"
+# section. Verified as the latest stable release on Maven Central 2026-08-02.
+zxing = "3.5.3"
+
+[libraries]
+# Kotlin
+kotlinx-coroutines-core = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-core", version.ref = "kotlinxCoroutines" }
+kotlinx-coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-android", version.ref = "kotlinxCoroutines" }
+kotlinx-coroutines-test = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-test", version.ref = "kotlinxCoroutines" }
+kotlinx-serialization-json = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-json", version.ref = "kotlinxSerializationJson" }
+
+# AndroidX core
+androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
+androidx-activity-compose = { group = "androidx.activity", name = "activity-compose", version.ref = "activityCompose" }
+androidx-lifecycle-runtime-ktx = { group = "androidx.lifecycle", name = "lifecycle-runtime-ktx", version.ref = "lifecycle" }
+androidx-lifecycle-runtime-compose = { group = "androidx.lifecycle", name = "lifecycle-runtime-compose", version.ref = "lifecycle" }
+androidx-lifecycle-viewmodel-compose = { group = "androidx.lifecycle", name = "lifecycle-viewmodel-compose", version.ref = "lifecycle" }
+androidx-lifecycle-viewmodel-ktx = { group = "androidx.lifecycle", name = "lifecycle-viewmodel-ktx", version.ref = "lifecycle" }
+
+# Compose (versions resolved via the BOM — no version.ref on the individual artifacts)
+androidx-compose-bom = { group = "androidx.compose", name = "compose-bom", version.ref = "composeBom" }
+androidx-compose-ui = { group = "androidx.compose.ui", name = "ui" }
+androidx-compose-ui-graphics = { group = "androidx.compose.ui", name = "ui-graphics" }
+androidx-compose-ui-tooling = { group = "androidx.compose.ui", name = "ui-tooling" }
+androidx-compose-ui-tooling-preview = { group = "androidx.compose.ui", name = "ui-tooling-preview" }
+androidx-compose-ui-test-manifest = { group = "androidx.compose.ui", name = "ui-test-manifest" }
+androidx-compose-ui-test-junit4 = { group = "androidx.compose.ui", name = "ui-test-junit4" }
+androidx-compose-material3 = { group = "androidx.compose.material3", name = "material3" }
+androidx-compose-material-icons-extended = { group = "androidx.compose.material", name = "material-icons-extended" }
+
+# Navigation
+androidx-navigation-compose = { group = "androidx.navigation", name = "navigation-compose", version.ref = "navigationCompose" }
+
+# Hilt
+hilt-android = { group = "com.google.dagger", name = "hilt-android", version.ref = "hiltAndroid" }
+hilt-android-compiler = { group = "com.google.dagger", name = "hilt-android-compiler", version.ref = "hiltAndroid" }
+androidx-hilt-navigation-compose = { group = "androidx.hilt", name = "hilt-navigation-compose", version.ref = "hiltNavigationCompose" }
+
+# Room
+androidx-room-runtime = { group = "androidx.room", name = "room-runtime", version.ref = "room" }
+androidx-room-ktx = { group = "androidx.room", name = "room-ktx", version.ref = "room" }
+androidx-room-compiler = { group = "androidx.room", name = "room-compiler", version.ref = "room" }
+androidx-room-paging = { group = "androidx.room", name = "room-paging", version.ref = "room" }
+androidx-room-testing = { group = "androidx.room", name = "room-testing", version.ref = "room" }
+
+# DataStore
+androidx-datastore-preferences = { group = "androidx.datastore", name = "datastore-preferences", version.ref = "datastore" }
+
+# WorkManager
+androidx-work-runtime-ktx = { group = "androidx.work", name = "work-runtime-ktx", version.ref = "workManager" }
+androidx-work-testing = { group = "androidx.work", name = "work-testing", version.ref = "workManager" }
+androidx-hilt-work = { group = "androidx.hilt", name = "hilt-work", version.ref = "hiltNavigationCompose" }
+androidx-hilt-compiler = { group = "androidx.hilt", name = "hilt-compiler", version.ref = "hiltNavigationCompose" }
+
+# CameraX
+androidx-camera-core = { group = "androidx.camera", name = "camera-core", version.ref = "cameraX" }
+androidx-camera-camera2 = { group = "androidx.camera", name = "camera-camera2", version.ref = "cameraX" }
+androidx-camera-lifecycle = { group = "androidx.camera", name = "camera-lifecycle", version.ref = "cameraX" }
+androidx-camera-view = { group = "androidx.camera", name = "camera-view", version.ref = "cameraX" }
+
+# Gallery import — ActivityResultContracts.PickVisualMedia (the Photo Picker) lives
+# in the plain androidx.activity artifact, not activity-compose. Same version line
+# as activityCompose (androidx.activity ships both artifacts in lockstep).
+androidx-activity = { group = "androidx.activity", name = "activity-ktx", version.ref = "activityCompose" }
+
+# ML Kit Subject Segmentation (Phase 5b, ADR-008) — on-device only, no server call;
+# see the version comment above for why this is pinned to a beta.
+mlkit-subject-segmentation = { group = "com.google.android.gms", name = "play-services-mlkit-subject-segmentation", version.ref = "mlkitSubjectSegmentation" }
+
+# ML Kit Pose Detection, base (bundled-model) variant, not the Play-Services-
+# hosted-model variant — Phase 10, see the version comment above.
+mlkit-pose-detection = { group = "com.google.mlkit", name = "pose-detection", version.ref = "mlkitPoseDetection" }
+
+# Coil (Coil 3 — group changed to io.coil-kt.coil3, coil-base renamed to coil-core).
+# No coil-network-* artifact: every image this app loads is a local file (Section
+# 17, Phase 1) — there is no remote image URL anywhere in this product.
+coil-compose = { group = "io.coil-kt.coil3", name = "coil-compose", version.ref = "coil" }
+
+# Paging
+androidx-paging-runtime = { group = "androidx.paging", name = "paging-runtime", version.ref = "paging" }
+androidx-paging-compose = { group = "androidx.paging", name = "paging-compose", version.ref = "paging" }
+
+# Networking (Weather API only — core:network)
+retrofit-core = { group = "com.squareup.retrofit2", name = "retrofit", version.ref = "retrofit" }
+retrofit-kotlinx-serialization-converter = { group = "com.squareup.retrofit2", name = "converter-kotlinx-serialization", version.ref = "retrofit" }
+okhttp-core = { group = "com.squareup.okhttp3", name = "okhttp", version.ref = "okhttp" }
+okhttp-logging-interceptor = { group = "com.squareup.okhttp3", name = "logging-interceptor", version.ref = "okhttp" }
+
+# Testing
+junit4 = { group = "junit", name = "junit", version.ref = "junit4" }
+junit-jupiter = { group = "org.junit.jupiter", name = "junit-jupiter", version.ref = "junit5" }
+mockk = { group = "io.mockk", name = "mockk", version.ref = "mockk" }
+mockk-android = { group = "io.mockk", name = "mockk-android", version.ref = "mockk" }
+turbine = { group = "app.cash.turbine", name = "turbine", version.ref = "turbine" }
+androidx-test-ext-junit = { group = "androidx.test.ext", name = "junit", version.ref = "androidxTestJunit" }
+androidx-test-espresso-core = { group = "androidx.test.espresso", name = "espresso-core", version.ref = "androidxTestEspresso" }
+androidx-test-uiautomator = { group = "androidx.test.uiautomator", name = "uiautomator", version.ref = "androidxTestUiautomator" }
+robolectric = { group = "org.robolectric", name = "robolectric", version.ref = "robolectric" }
+hilt-android-testing = { group = "com.google.dagger", name = "hilt-android-testing", version.ref = "hiltAndroid" }
+
+# Baseline profiles / benchmark
+androidx-profileinstaller = { group = "androidx.profileinstaller", name = "profileinstaller", version.ref = "profileinstaller" }
+androidx-benchmark-macro-junit4 = { group = "androidx.benchmark", name = "benchmark-macro-junit4", version.ref = "macrobenchmark" }
+
+# Home-screen widget
+androidx-glance-appwidget = { group = "androidx.glance", name = "glance-appwidget", version.ref = "glance" }
+androidx-glance-material3 = { group = "androidx.glance", name = "glance-material3", version.ref = "glance" }
+
+# QR pairing (Phase 8)
+zxing-core = { group = "com.google.zxing", name = "core", version.ref = "zxing" }
+
+[plugins]
+android-application = { id = "com.android.application", version.ref = "agp" }
+android-library = { id = "com.android.library", version.ref = "agp" }
+android-test = { id = "com.android.test", version.ref = "agp" }
+kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
+kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
+kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
+kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
+ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
+hilt = { id = "com.google.dagger.hilt.android", version.ref = "hiltAndroid" }
+room = { id = "androidx.room", version.ref = "room" }
+ktlint = { id = "org.jlleitschuh.gradle.ktlint", version.ref = "ktlintGradle" }
+detekt = { id = "io.gitlab.arturbosch.detekt", version.ref = "detekt" }
+baselineprofile = { id = "androidx.baselineprofile", version.ref = "macrobenchmark" }

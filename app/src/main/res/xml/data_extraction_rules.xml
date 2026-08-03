@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Android 12+ (API 31+) data extraction rules. Unlike the legacy full-backup-content
+  format, this API distinguishes cloud-backup from device-to-device transfer:
+
+  - cloud-backup: excluded entirely. This is the channel that silently uploads app
+    data to the user's Google account. Excluding the DB, images, DataStore file and
+    all SharedPreferences here is what actually enforces "no cloud" for this app on
+    modern Android — see Phase 1 Section 24 / Section 0 pushback #2.
+  - device-transfer: intentionally left un-excluded. A cable/Wi-Fi-Direct transfer
+    to a new phone during setup is not a cloud copy, and losing a wardrobe's worth
+    of photos on every phone upgrade because the user forgot to run the in-app
+    export first is a worse outcome than allowing this specific, non-cloud channel.
+-->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="database" path="." />
+        <exclude domain="file" path="images/" />
+        <exclude domain="file" path="datastore/" />
+        <exclude domain="sharedpref" path="." />
+    </cloud-backup>
+    <device-transfer>
+        <!-- No excludes: full local dataset transfers directly between the user's
+             own devices, never touching a server. -->
+    </device-transfer>
+</data-extraction-rules>

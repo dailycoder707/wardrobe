@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+      Manifest-level theme only — used for the window background/status bar
+      before Compose takes over, and for the launch screen. All real theming
+      (colors, typography, shapes) is defined in Kotlin in core:designsystem
+      (Section 17, Phase 1) via WardrobeTheme, not here.
+    -->
+    <style name="Theme.Wardrobe" parent="android:Theme.Material.Light.NoActionBar" />
+</resources>

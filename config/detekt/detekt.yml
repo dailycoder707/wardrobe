@@ -1,0 +1,42 @@
+# Overrides on top of Detekt's bundled default ruleset (buildUponDefaultConfig = true
+# in the root build.gradle.kts means every rule not mentioned here still runs at its
+# default severity — this file only records where this project intentionally differs).
+
+style:
+  MaxLineLength:
+    maxLineLength: 120
+  MagicNumber:
+    # Compose dimension/alpha literals (padding, weights, elevation) and design
+    # tokens (hex color literals, type scale sizes) are the common case that
+    # trips this rule constantly for no real benefit in UI/design-system code.
+    excludes: ["**/ui/**", "**/*Screen.kt", "**/*Theme.kt", "**/designsystem/theme/**"]
+
+complexity:
+  LongParameterList:
+    functionThreshold: 7
+    constructorThreshold: 10 # Room entities and domain models legitimately carry many fields
+  TooManyFunctions:
+    # Room DAOs, the @Database class, the shared TypeConverters class, Hilt DI
+    # modules (one @Provides/@Binds per DAO/repository is the whole point), the
+    # typed DataStore preference wrappers (one getter/setter pair per field), and
+    # core:image's file-path utility (Phase 5b — one named path/move/delete method
+    # per concern, deliberately not collapsed into a generic do-everything method)
+    # all legitimately aggregate many small, single-purpose methods by the nature
+    # of the pattern — this isn't the "god class" shape the rule is meant to catch.
+    excludes:
+      [
+        "**/dao/**",
+        "**/converter/**",
+        "**/WardrobeDatabase.kt",
+        "**/di/**",
+        "**/preferences/**",
+        "**/image/storage/**",
+      ]
+
+naming:
+  FunctionNaming:
+    # Composable functions are PascalCase by Compose convention, project-wide —
+    # not just under a `ui` package — so this uses detekt's built-in annotation
+    # exemption rather than a path glob that would need updating every time a
+    # Composable shows up somewhere new.
+    ignoreAnnotated: ["Composable"]
