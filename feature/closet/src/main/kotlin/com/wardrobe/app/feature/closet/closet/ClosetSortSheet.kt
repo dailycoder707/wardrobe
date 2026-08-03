@@ -18,6 +18,7 @@ import androidx.compose.ui.unit.dp
 import com.wardrobe.app.core.model.garment.GarmentSort
 import com.wardrobe.app.core.model.garment.GarmentSortField
 import com.wardrobe.app.core.model.garment.SortDirection
+import com.wardrobe.app.feature.closet.addwardrobe.AddToWardrobeSheet
 
 private val SORT_FIELD_LABELS =
     mapOf(
@@ -118,7 +119,7 @@ internal fun ClosetAddToWardrobeOverlay(
     addActions: ClosetAddActions,
 ) {
     if (isOpen) {
-        com.wardrobe.app.feature.closet.addwardrobe.AddToWardrobeSheet(
+        AddToWardrobeSheet(
             onDismiss = onDismiss,
             onTakePhoto = addActions.onTakePhoto,
             onImportStarted = addActions.onImportStarted,

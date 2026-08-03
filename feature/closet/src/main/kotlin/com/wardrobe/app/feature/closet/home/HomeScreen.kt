@@ -27,7 +27,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -249,28 +248,6 @@ private fun HomeContent(
 
         if (state.recentlyWorn.isNotEmpty()) {
             GarmentSection(title = "Recently Worn", garments = state.recentlyWorn, onOpenGarment = onOpenGarment)
-        }
-    }
-}
-
-@Composable
-private fun ResumeImportBanner(
-    count: Int,
-    onClick: () -> Unit,
-) {
-    val shape = RoundedCornerShape(16.dp)
-    ElevatedCard(
-        shape = shape,
-        onClick = onClick,
-        modifier = Modifier.fillMaxWidth().wardrobeShadow(WardrobeElevation.RESTING, shape),
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(16.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text("Resume Import ($count item${if (count == 1) "" else "s"})", style = MaterialTheme.typography.bodyLarge)
-            TextButton(onClick = onClick) { Text("Resume") }
         }
     }
 }

@@ -63,7 +63,6 @@ import javax.inject.Inject
 private const val RECENTLY_WORN_WINDOW_DAYS = 30L
 private const val SYNC_CONFIRMATION_DURATION_MS = 4000L
 private const val UPCOMING_WINDOW_DAYS = 30L
-private const val RECENT_SECTION_LIMIT = 10
 
 /** Groups Phase 7's Home-assistant dependencies so [HomeViewModel]'s own
  * constructor stays under detekt's `LongParameterList` threshold — the same
@@ -309,27 +308,8 @@ class HomeViewModel
                     outfitsById = insightsSource.outfits.associateBy { it.id },
                 )
 
-            val recentlyAdded =
-                activeGarments
-                    .sortedByDescending { it.createdAt }
-                    .take(RECENT_SECTION_LIMIT)
-                    .map { it.toTileUiModel(categoriesById, brandsById) }
-
-            val recentlyWorn =
-                activity.wearEvents
-                    .filter { it.garmentId != null }
-                    .sortedByDescending { it.date }
-                    .mapNotNull { it.garmentId }
-                    .distinct()
-                    .take(RECENT_SECTION_LIMIT)
-                    .mapNotNull { id -> garmentsById[id]?.toTileUiModel(categoriesById, brandsById) }
-
-            val continueEditing =
-                activeGarments
-                    .filter { !it.isReviewed }
-                    .sortedByDescending { it.updatedAt }
-                    .take(RECENT_SECTION_LIMIT)
-                    .map { it.toTileUiModel(categoriesById, brandsById) }
+            val sections =
+                buildGarmentSections(activeGarments, activity.wearEvents, garmentsById, categoriesById, brandsById)
 
             return HomeUiState(
                 isLoading = false,
@@ -344,9 +324,9 @@ class HomeViewModel
                         wornAtLeastOnce = activity.usageStats.wornAtLeastOnce,
                         usagePercent = activity.usageStats.usagePercent.toInt(),
                     ),
-                recentlyAdded = recentlyAdded,
-                recentlyWorn = recentlyWorn,
-                continueEditing = continueEditing,
+                recentlyAdded = sections.recentlyAdded,
+                recentlyWorn = sections.recentlyWorn,
+                continueEditing = sections.continueEditing,
                 incompleteImportCount = activity.incompleteImportCount,
                 insights =
                     buildHomeInsights(
