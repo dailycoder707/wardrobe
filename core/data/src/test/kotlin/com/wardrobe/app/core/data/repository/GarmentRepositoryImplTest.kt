@@ -55,8 +55,10 @@ class GarmentRepositoryImplTest {
                 categoryDao = db.categoryDao(),
                 colorDao = db.colorDao(),
                 materialDao = db.materialDao(),
+                fabricDao = db.fabricDao(),
                 brandDao = db.brandDao(),
                 tagDao = db.tagDao(),
+                occasionDao = db.occasionDao(),
                 imageFileStore = ImageFileStore(ApplicationProvider.getApplicationContext()),
             )
     }

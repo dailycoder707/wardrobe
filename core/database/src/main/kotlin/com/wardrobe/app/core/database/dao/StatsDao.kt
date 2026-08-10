@@ -92,6 +92,23 @@ data class GarmentPairRow(
     val pairCount: Int,
 )
 
+/** M21 — composition counts (not wear counts), the same shape as
+ * [CategoryGarmentCountRow]. */
+data class MaterialGarmentCountRow(
+    val materialId: Long,
+    val garmentCount: Int,
+)
+
+data class FabricGarmentCountRow(
+    val fabricId: Long,
+    val garmentCount: Int,
+)
+
+data class OccasionGarmentCountRow(
+    val occasionId: Long,
+    val garmentCount: Int,
+)
+
 /**
  * Every method here is a derived query over `garments`/`wear_events`/
  * `outfit_garments` — none read a precomputed table (ADR-006). All return `Flow` (not
@@ -278,9 +295,17 @@ interface StatsDao {
         endDate: String,
     ): Flow<List<WeekdayWeekendRow>>
 
+    /** M21 bug fix: was `COUNT(DISTINCT gs.garmentId)`, which counts the
+     * cross-ref row's own garmentId regardless of whether the `garments`
+     * join actually matched — since archiving a garment (`setStatus`)
+     * never deletes its `garment_seasons` rows, an archived garment's
+     * season tag was silently counted as live coverage, capable of hiding
+     * a genuine [ClosetGap]. Counting `g.id` instead is `NULL` whenever the
+     * compound `g.status = 'ACTIVE'` join condition fails, which `COUNT`
+     * correctly excludes. */
     @Query(
         """
-        SELECT s.season AS season, COUNT(DISTINCT gs.garmentId) AS garmentCount
+        SELECT s.season AS season, COUNT(DISTINCT g.id) AS garmentCount
         FROM (SELECT 'SPRING' AS season UNION SELECT 'SUMMER' UNION SELECT 'AUTUMN' UNION SELECT 'WINTER') s
         LEFT JOIN garment_seasons gs ON gs.season = s.season
         LEFT JOIN garments g ON g.id = gs.garmentId AND g.status = 'ACTIVE'
@@ -289,9 +314,11 @@ interface StatsDao {
     )
     fun observeActiveGarmentCountBySeason(): Flow<List<SeasonGarmentCountRow>>
 
+    /** M21 bug fix — see [observeActiveGarmentCountBySeason]'s KDoc; the
+     * identical archived-garment-leak existed here too. */
     @Query(
         """
-        SELECT d.dressCode AS dressCode, COUNT(DISTINCT gd.garmentId) AS garmentCount
+        SELECT d.dressCode AS dressCode, COUNT(DISTINCT g.id) AS garmentCount
         FROM (
             SELECT 'CASUAL' AS dressCode UNION SELECT 'SMART_CASUAL' UNION SELECT 'BUSINESS'
             UNION SELECT 'FORMAL' UNION SELECT 'ATHLETIC' UNION SELECT 'LOUNGE'
@@ -507,4 +534,58 @@ interface StatsDao {
         """,
     )
     fun observeTopGarmentPairs(limit: Int): Flow<List<GarmentPairRow>>
+
+    /** M21 — active-garment counts by fiber-content material, the same
+     * "own it or not" composition shape as [observeActiveGarmentCountByCategory],
+     * not a wear-history query. Materials nobody owns simply don't appear
+     * (unlike [observeActiveGarmentCountByOccasion], zero-count materials
+     * aren't a useful signal — nothing "should" cover every material). */
+    @Query(
+        """
+        SELECT gm.materialId AS materialId, COUNT(DISTINCT gm.garmentId) AS garmentCount
+        FROM garment_materials gm
+        JOIN garments g ON g.id = gm.garmentId AND g.status = 'ACTIVE'
+        GROUP BY gm.materialId
+        ORDER BY garmentCount DESC
+        """,
+    )
+    fun observeActiveGarmentCountByMaterial(): Flow<List<MaterialGarmentCountRow>>
+
+    /** M21 — the [observeActiveGarmentCountByMaterial] equivalent for
+     * weave/construction fabric (M19 ADR-018's Material/Fabric split). */
+    @Query(
+        """
+        SELECT gf.fabricId AS fabricId, COUNT(DISTINCT gf.garmentId) AS garmentCount
+        FROM garment_fabrics gf
+        JOIN garments g ON g.id = gf.garmentId AND g.status = 'ACTIVE'
+        GROUP BY gf.fabricId
+        ORDER BY garmentCount DESC
+        """,
+    )
+    fun observeActiveGarmentCountByFabric(): Flow<List<FabricGarmentCountRow>>
+
+    /** M21 — every real [com.wardrobe.app.core.model.outfit.Occasion] row,
+     * including ones with zero active garments tagged (the coverage gap
+     * itself) — counts `g.id`, not `go.garmentId`, so an occasion tagged
+     * only on an archived garment correctly shows zero *active* coverage. */
+    @Query(
+        """
+        SELECT o.id AS occasionId, COUNT(DISTINCT g.id) AS garmentCount
+        FROM occasions o
+        LEFT JOIN garment_occasions go ON go.occasionId = o.id
+        LEFT JOIN garments g ON g.id = go.garmentId AND g.status = 'ACTIVE'
+        GROUP BY o.id
+        """,
+    )
+    fun observeActiveGarmentCountByOccasion(): Flow<List<OccasionGarmentCountRow>>
+
+    /** M21 — honest missing-metadata disclosure (Part 6): unlike category,
+     * an occasion tag is genuinely optional per garment. */
+    @Query(
+        """
+        SELECT COUNT(*) FROM garments
+        WHERE status = 'ACTIVE' AND id NOT IN (SELECT DISTINCT garmentId FROM garment_occasions)
+        """,
+    )
+    fun observeActiveGarmentCountWithoutOccasion(): Flow<Int>
 }

@@ -3,8 +3,15 @@ package com.wardrobe.app.core.data.repository
 import androidx.test.core.app.ApplicationProvider
 import com.wardrobe.app.core.database.WardrobeDatabase
 import com.wardrobe.app.core.database.entity.CategoryEntity
+import com.wardrobe.app.core.database.entity.FabricEntity
 import com.wardrobe.app.core.database.entity.GarmentDressCodeCrossRef
 import com.wardrobe.app.core.database.entity.GarmentEntity
+import com.wardrobe.app.core.database.entity.GarmentFabricCrossRef
+import com.wardrobe.app.core.database.entity.GarmentMaterialCrossRef
+import com.wardrobe.app.core.database.entity.GarmentOccasionCrossRef
+import com.wardrobe.app.core.database.entity.GarmentSeasonCrossRef
+import com.wardrobe.app.core.database.entity.MaterialEntity
+import com.wardrobe.app.core.database.entity.OccasionEntity
 import com.wardrobe.app.core.database.entity.OutfitEntity
 import com.wardrobe.app.core.database.entity.OutfitGarmentCrossRef
 import com.wardrobe.app.core.database.entity.WearEventEntity
@@ -12,6 +19,7 @@ import com.wardrobe.app.core.model.common.DateRange
 import com.wardrobe.app.core.model.garment.CategoryLevel
 import com.wardrobe.app.core.model.garment.DressCode
 import com.wardrobe.app.core.model.garment.GarmentStatus
+import com.wardrobe.app.core.model.garment.Season
 import com.wardrobe.app.core.model.outfit.OutfitSource
 import com.wardrobe.app.core.model.stats.StatsWindow
 import com.wardrobe.app.core.model.wear.WearEventStatus
@@ -180,6 +188,16 @@ class StatsRepositoryImplTest {
                 .toString(),
     )
 
+    /** Moves a garment out of active rotation without deleting it — the same
+     * "no longer counts toward active coverage" state [GarmentEntity.status]
+     * uses everywhere else in this repository's queries. [GarmentStatus] has
+     * no literal "archived" value; [GarmentStatus.STORED] is its non-ACTIVE
+     * member closest to that concept. */
+    private suspend fun setNonActive(garmentId: Long) {
+        val current = db.garmentDao().getWithRelations(garmentId)!!.garment
+        db.garmentDao().update(current.copy(status = GarmentStatus.STORED))
+    }
+
     private suspend fun insertOutfit(
         name: String,
         isSaved: Boolean = true,
@@ -307,7 +325,8 @@ class StatsRepositoryImplTest {
             val unsaved = insertOutfit("AI Suggestion", isSaved = false)
             db.wearEventDao().insert(wearEvent(date = "2026-06-01", outfitId = alreadyWorn))
 
-            val neverWornIds = repository.observeNeverWornOutfitIds().first().map { it.value }
+            val gaps = repository.observeWardrobeUsageGaps().first()
+            val neverWornIds = gaps.neverWornOutfitIds.map { it.value }
 
             assertEquals(listOf(neverWorn), neverWornIds)
             assertTrue(archived !in neverWornIds && unsaved !in neverWornIds && alreadyWorn !in neverWornIds)
@@ -322,7 +341,8 @@ class StatsRepositoryImplTest {
             val outfitDao = db.outfitDao()
             outfitDao.insertGarmentSlots(listOf(OutfitGarmentCrossRef(outfitId, layerSlot = 0, garmentId = inAnOutfit)))
 
-            val missing = repository.observeGarmentsMissingOutfits().first().map { it.value }
+            val gaps = repository.observeWardrobeUsageGaps().first()
+            val missing = gaps.garmentsMissingOutfits.map { it.value }
 
             assertEquals(listOf(neverStyled), missing)
         }
@@ -381,5 +401,106 @@ class StatsRepositoryImplTest {
             assertEquals(28, heatmap.size)
             assertEquals(expectedWornCount, heatmap.sumOf { it.wearCount })
             assertEquals(expectedWornCount, costPerWear.sumOf { it.totalWearCount })
+        }
+
+    @Test
+    fun `material distribution counts only active garments tagged with that material`() =
+        runTest {
+            val cottonId = db.materialDao().insert(MaterialEntity(name = "Cotton"))
+            val wornCotton = insertGarment("Cotton Shirt")
+            val archivedCotton = insertGarment("Old Cotton Shirt")
+            setNonActive(archivedCotton)
+            db.garmentDao().insertMaterials(
+                listOf(
+                    GarmentMaterialCrossRef(wornCotton, cottonId, percentage = 100),
+                    GarmentMaterialCrossRef(archivedCotton, cottonId, percentage = 100),
+                ),
+            )
+
+            val distribution = repository.observeWardrobeMixDistribution().first().materials
+
+            assertEquals(1, distribution.single { it.materialId.value == cottonId }.garmentCount)
+        }
+
+    @Test
+    fun `fabric distribution counts active garments tagged with that fabric`() =
+        runTest {
+            val denimId = db.fabricDao().insert(FabricEntity(name = "Denim"))
+            val garmentId = insertGarment("Jeans")
+            db.garmentDao().insertFabrics(listOf(GarmentFabricCrossRef(garmentId, denimId, percentage = 100)))
+
+            val distribution = repository.observeWardrobeMixDistribution().first().fabrics
+
+            assertEquals(1, distribution.single { it.fabricId.value == denimId }.garmentCount)
+        }
+
+    @Test
+    fun `occasion coverage includes a real occasion with zero active garments as the gap itself`() =
+        runTest {
+            val workId = db.occasionDao().insert(OccasionEntity(name = "Work", syncId = "occasion-work"))
+            val weddingId = db.occasionDao().insert(OccasionEntity(name = "Wedding", syncId = "occasion-wedding"))
+            val garmentId = insertGarment("Blazer")
+            db.garmentDao().insertOccasions(listOf(GarmentOccasionCrossRef(garmentId, workId)))
+
+            val distribution = repository.observeWardrobeMixDistribution().first()
+            val coverage = distribution.occasions.associateBy { it.occasionId.value }
+
+            assertEquals(1, coverage.getValue(workId).garmentCount)
+            assertEquals(0, coverage.getValue(weddingId).garmentCount)
+        }
+
+    @Test
+    fun `occasion coverage excludes an archived garment's tag from its occasion's count`() =
+        runTest {
+            val workId = db.occasionDao().insert(OccasionEntity(name = "Work"))
+            val archivedGarment = insertGarment("Retired Blazer")
+            setNonActive(archivedGarment)
+            db.garmentDao().insertOccasions(listOf(GarmentOccasionCrossRef(archivedGarment, workId)))
+
+            val distribution = repository.observeWardrobeMixDistribution().first()
+            val coverage = distribution.occasions.associateBy { it.occasionId.value }
+
+            assertEquals(0, coverage.getValue(workId).garmentCount)
+        }
+
+    @Test
+    fun `garments without any occasion tag are counted honestly, never assumed zero`() =
+        runTest {
+            val workId = db.occasionDao().insert(OccasionEntity(name = "Work"))
+            val tagged = insertGarment("Blazer")
+            val untagged = insertGarment("Plain Tee")
+            db.garmentDao().insertOccasions(listOf(GarmentOccasionCrossRef(tagged, workId)))
+
+            val withoutOccasion = repository.observeWardrobeMixDistribution().first().garmentsWithoutOccasion
+
+            assertEquals(1, withoutOccasion)
+            assertTrue(untagged > 0)
+        }
+
+    /** M21 bug fix regression: archiving a garment must not leave its
+     * season/dress-code tags silently counting toward active coverage —
+     * see [StatsDao.observeActiveGarmentCountBySeason]'s KDoc. */
+    @Test
+    fun `an archived garment's season no longer counts toward active season coverage`() =
+        runTest {
+            val onlyWinterGarment = insertGarment("Coat")
+            db.garmentDao().insertSeasons(listOf(GarmentSeasonCrossRef(onlyWinterGarment, Season.WINTER)))
+            setNonActive(onlyWinterGarment)
+
+            val gaps = repository.observeClosetGaps().first()
+
+            assertTrue(gaps.any { it.relatedSeason == Season.WINTER })
+        }
+
+    @Test
+    fun `an archived garment's dress code no longer counts toward active dress-code coverage`() =
+        runTest {
+            val onlyFormalGarment = insertGarment("Tuxedo")
+            db.garmentDao().insertDressCodes(listOf(GarmentDressCodeCrossRef(onlyFormalGarment, DressCode.FORMAL)))
+            setNonActive(onlyFormalGarment)
+
+            val gaps = repository.observeClosetGaps().first()
+
+            assertTrue(gaps.any { it.relatedDressCode == DressCode.FORMAL })
         }
 }

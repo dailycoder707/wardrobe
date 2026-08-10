@@ -120,3 +120,58 @@ data class GarmentDressCodeCrossRef(
     val garmentId: Long,
     val dressCode: DressCode,
 )
+
+/** Mirrors [GarmentMaterialCrossRef]'s shape exactly — fabric is a real
+ * reference table (not a fixed enum like season/dressCode), so this FKs to
+ * both sides, same as [GarmentTagCrossRef]. Added `MIGRATION_8_9`. */
+@Entity(
+    tableName = "garment_fabrics",
+    primaryKeys = ["garmentId", "fabricId"],
+    foreignKeys = [
+        ForeignKey(
+            entity = GarmentEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["garmentId"],
+            onDelete = ForeignKey.CASCADE,
+        ),
+        ForeignKey(
+            entity = FabricEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["fabricId"],
+            onDelete = ForeignKey.RESTRICT,
+        ),
+    ],
+)
+data class GarmentFabricCrossRef(
+    val garmentId: Long,
+    val fabricId: Long,
+    val percentage: Int?,
+)
+
+/** Occasion is a real, user-extensible reference table (already used by
+ * `Outfit`) — this cross-ref FKs to both sides, same shape as
+ * [GarmentTagCrossRef], not the fixed-enum shape of [GarmentSeasonCrossRef]/
+ * [GarmentDressCodeCrossRef]. Deliberately independent of `dressCode`
+ * (formality) — see `Garment.occasionIds`'s KDoc. Added `MIGRATION_8_9`. */
+@Entity(
+    tableName = "garment_occasions",
+    primaryKeys = ["garmentId", "occasionId"],
+    foreignKeys = [
+        ForeignKey(
+            entity = GarmentEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["garmentId"],
+            onDelete = ForeignKey.CASCADE,
+        ),
+        ForeignKey(
+            entity = OccasionEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["occasionId"],
+            onDelete = ForeignKey.RESTRICT,
+        ),
+    ],
+)
+data class GarmentOccasionCrossRef(
+    val garmentId: Long,
+    val occasionId: Long,
+)

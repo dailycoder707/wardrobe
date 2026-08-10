@@ -6,12 +6,14 @@ import com.wardrobe.app.core.data.sync.SyncIdResolver
 import com.wardrobe.app.core.database.dao.BrandDao
 import com.wardrobe.app.core.database.dao.CategoryDao
 import com.wardrobe.app.core.database.dao.ColorDao
+import com.wardrobe.app.core.database.dao.FabricDao
 import com.wardrobe.app.core.database.dao.MaterialDao
 import com.wardrobe.app.core.database.dao.OccasionDao
 import com.wardrobe.app.core.database.dao.TagDao
 import com.wardrobe.app.core.database.entity.BrandEntity
 import com.wardrobe.app.core.database.entity.CategoryEntity
 import com.wardrobe.app.core.database.entity.ColorEntity
+import com.wardrobe.app.core.database.entity.FabricEntity
 import com.wardrobe.app.core.database.entity.MaterialEntity
 import com.wardrobe.app.core.database.entity.OccasionEntity
 import com.wardrobe.app.core.database.entity.TagEntity
@@ -167,6 +169,60 @@ class MaterialSyncHandler(
         if (remoteWins) {
             val entity =
                 MaterialEntity(id = existing?.id ?: 0, name = wire.name, syncId = syncId, updatedAt = remoteUpdatedAt)
+            if (existing == null) dao.insert(entity) else dao.update(entity)
+        }
+        return if (remoteWins) ApplyOutcome.Applied else ApplyOutcome.LocalNewerIgnored
+    }
+
+    override suspend fun applyDelete(
+        syncId: String,
+        remoteDeletedAt: Long,
+    ): ApplyOutcome {
+        val existing = dao.getBySyncId(syncId)
+        return when {
+            existing == null -> {
+                ApplyOutcome.Applied
+            }
+
+            existing.updatedAt > remoteDeletedAt -> {
+                renamedConflict(existing.name)
+            }
+
+            else -> {
+                dao.deleteById(existing.id)
+                ApplyOutcome.Applied
+            }
+        }
+    }
+}
+
+@Serializable
+private data class FabricWire(
+    val name: String,
+)
+
+/** Mirrors [MaterialSyncHandler] exactly — see [com.wardrobe.app.core.model.garment.Fabric]'s
+ * KDoc for why fabric is a separate reference table from material. */
+class FabricSyncHandler(
+    private val dao: FabricDao,
+) : SyncEntityHandler {
+    override val tableName = "fabrics"
+
+    override suspend fun currentFieldsJson(syncId: String): String? =
+        dao.getBySyncId(syncId)?.let { syncJson.encodeToString(FabricWire.serializer(), FabricWire(it.name)) }
+
+    override suspend fun applyUpsert(
+        syncId: String,
+        fieldsJson: String,
+        remoteUpdatedAt: Long,
+        resolver: SyncIdResolver,
+    ): ApplyOutcome {
+        val wire = syncJson.decodeFromString(FabricWire.serializer(), fieldsJson)
+        val existing = dao.getBySyncId(syncId)
+        val remoteWins = existing == null || isRemoteNewer(existing.updatedAt, remoteUpdatedAt)
+        if (remoteWins) {
+            val entity =
+                FabricEntity(id = existing?.id ?: 0, name = wire.name, syncId = syncId, updatedAt = remoteUpdatedAt)
             if (existing == null) dao.insert(entity) else dao.update(entity)
         }
         return if (remoteWins) ApplyOutcome.Applied else ApplyOutcome.LocalNewerIgnored

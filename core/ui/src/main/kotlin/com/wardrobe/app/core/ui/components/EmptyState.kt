@@ -8,6 +8,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -18,7 +19,11 @@ import com.wardrobe.app.core.designsystem.theme.WardrobeTheme
 
 /** `docs/design/component-library.md`'s "Empty State" — a single line-art
  * motif (here, an [icon] in accent gold), a Display Medium headline, a Body
- * Medium supporting line, and an optional single action. */
+ * Medium supporting line, an optional primary action, and an optional
+ * secondary (text) action for screens that offer two distinct recoveries
+ * (e.g. Closet's "no filter results": clear filters vs. open the filter
+ * sheet to modify them, M17 Part 7G). */
+@Suppress("LongParameterList")
 @Composable
 fun EmptyState(
     icon: ImageVector,
@@ -27,6 +32,8 @@ fun EmptyState(
     modifier: Modifier = Modifier,
     actionLabel: String? = null,
     onAction: (() -> Unit)? = null,
+    secondaryActionLabel: String? = null,
+    onSecondaryAction: (() -> Unit)? = null,
 ) {
     Column(
         modifier = modifier.fillMaxSize().padding(32.dp),
@@ -54,6 +61,11 @@ fun EmptyState(
         if (actionLabel != null && onAction != null) {
             Button(onClick = onAction, modifier = Modifier.padding(top = 24.dp)) {
                 Text(actionLabel)
+            }
+        }
+        if (secondaryActionLabel != null && onSecondaryAction != null) {
+            TextButton(onClick = onSecondaryAction, modifier = Modifier.padding(top = 4.dp)) {
+                Text(secondaryActionLabel)
             }
         }
     }

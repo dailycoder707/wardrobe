@@ -53,6 +53,15 @@ dependencies {
     implementation(libs.androidx.camera.lifecycle)
     implementation(libs.androidx.camera.view)
 
+    // M15 Part 4 — the Profile screen's avatar picker reuses
+    // core:image's GalleryImportSource (the same Photo Picker + local-copy
+    // pattern feature:closet's AddToWardrobeSheet already uses) rather than
+    // reimplementing it; coil.compose renders the resulting local file path,
+    // the same library (and the same "implementation, not api" scoping)
+    // core:ui's GarmentTile already uses for garment thumbnails.
+    implementation(project(":core:image"))
+    implementation(libs.coil.compose)
+
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.compose.ui)
     implementation(libs.androidx.compose.ui.tooling.preview)

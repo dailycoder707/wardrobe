@@ -9,6 +9,11 @@ captures/
 local.properties
 keystore.properties
 
+# Claude Code per-machine tool permissions. `.claude/settings.json` (shared,
+# checked in when it exists) is deliberately NOT ignored — only the
+# `.local.` variant, which records one developer's own approved commands.
+.claude/settings.local.json
+
 # Android Studio / IntelliJ
 .idea/
 *.iml

@@ -1,13 +1,16 @@
 package com.wardrobe.app.feature.closet.fakes
 
+import com.wardrobe.app.core.domain.repository.AiProviderSettingsRepository
 import com.wardrobe.app.core.domain.repository.BrandRepository
 import com.wardrobe.app.core.domain.repository.CategoryRepository
 import com.wardrobe.app.core.domain.repository.ClosetPreferencesRepository
 import com.wardrobe.app.core.domain.repository.ColorRepository
+import com.wardrobe.app.core.domain.repository.FabricRepository
 import com.wardrobe.app.core.domain.repository.GarmentRepository
 import com.wardrobe.app.core.domain.repository.ImportQueueRepository
 import com.wardrobe.app.core.domain.repository.Location
 import com.wardrobe.app.core.domain.repository.MaterialRepository
+import com.wardrobe.app.core.domain.repository.OccasionRepository
 import com.wardrobe.app.core.domain.repository.OutfitRepository
 import com.wardrobe.app.core.domain.repository.PersonalizationRepository
 import com.wardrobe.app.core.domain.repository.StatsRepository
@@ -18,10 +21,17 @@ import com.wardrobe.app.core.domain.repository.TripRepository
 import com.wardrobe.app.core.domain.repository.WardrobeIntelligenceRepository
 import com.wardrobe.app.core.domain.repository.WearEventRepository
 import com.wardrobe.app.core.domain.repository.WeatherRepository
+import com.wardrobe.app.core.model.ai.AiActiveOperation
+import com.wardrobe.app.core.model.ai.AiActivityEntry
+import com.wardrobe.app.core.model.ai.AiCapability
+import com.wardrobe.app.core.model.ai.AiConnectionTestResult
+import com.wardrobe.app.core.model.ai.AiProviderConfig
+import com.wardrobe.app.core.model.ai.AiUsageSummary
 import com.wardrobe.app.core.model.common.BrandId
 import com.wardrobe.app.core.model.common.CategoryId
 import com.wardrobe.app.core.model.common.ColorId
 import com.wardrobe.app.core.model.common.DateRange
+import com.wardrobe.app.core.model.common.FabricId
 import com.wardrobe.app.core.model.common.GarmentId
 import com.wardrobe.app.core.model.common.MaterialId
 import com.wardrobe.app.core.model.common.OccasionId
@@ -34,6 +44,7 @@ import com.wardrobe.app.core.model.garment.Brand
 import com.wardrobe.app.core.model.garment.Category
 import com.wardrobe.app.core.model.garment.Color
 import com.wardrobe.app.core.model.garment.DressCode
+import com.wardrobe.app.core.model.garment.Fabric
 import com.wardrobe.app.core.model.garment.Garment
 import com.wardrobe.app.core.model.garment.GarmentFilter
 import com.wardrobe.app.core.model.garment.GarmentSort
@@ -52,6 +63,7 @@ import com.wardrobe.app.core.model.intelligence.OutfitInsights
 import com.wardrobe.app.core.model.intelligence.ShoppingGapSuggestion
 import com.wardrobe.app.core.model.intelligence.WardrobeAlerts
 import com.wardrobe.app.core.model.intelligence.WardrobeHealthScore
+import com.wardrobe.app.core.model.outfit.Occasion
 import com.wardrobe.app.core.model.outfit.Outfit
 import com.wardrobe.app.core.model.outfit.OutfitFilter
 import com.wardrobe.app.core.model.outfit.OutfitSlot
@@ -62,6 +74,8 @@ import com.wardrobe.app.core.model.stats.DormantItem
 import com.wardrobe.app.core.model.stats.RepeatedOutfit
 import com.wardrobe.app.core.model.stats.StatsWindow
 import com.wardrobe.app.core.model.stats.UsageStats
+import com.wardrobe.app.core.model.stats.WardrobeMixDistribution
+import com.wardrobe.app.core.model.stats.WardrobeUsageGaps
 import com.wardrobe.app.core.model.stats.WearHeatmapDay
 import com.wardrobe.app.core.model.styling.AccessoryCategory
 import com.wardrobe.app.core.model.styling.JewelryCategory
@@ -231,6 +245,26 @@ class FakeMaterialRepository(
     override suspend fun create(name: String): MaterialId = throw UnsupportedOperationException("not needed for tests")
 }
 
+class FakeFabricRepository(
+    initial: List<Fabric> = emptyList(),
+) : FabricRepository {
+    private val flow = MutableStateFlow(initial)
+
+    override fun observeAll(): Flow<List<Fabric>> = flow.asStateFlow()
+
+    override suspend fun create(name: String): FabricId = throw UnsupportedOperationException("not needed for tests")
+}
+
+class FakeOccasionRepository(
+    initial: List<Occasion> = emptyList(),
+) : OccasionRepository {
+    private val flow = MutableStateFlow(initial)
+
+    override fun observeAll(): Flow<List<Occasion>> = flow.asStateFlow()
+
+    override suspend fun create(name: String): OccasionId = throw UnsupportedOperationException("not needed for tests")
+}
+
 class FakeTagRepository(
     initial: List<Tag> = emptyList(),
 ) : TagRepository {
@@ -284,9 +318,8 @@ class FakeStatsRepository(
         limit: Int,
     ): Flow<List<RepeatedOutfit>> = flowOf(emptyList())
 
-    override fun observeNeverWornOutfitIds(): Flow<List<OutfitId>> = flowOf(emptyList())
-
-    override fun observeGarmentsMissingOutfits(): Flow<List<GarmentId>> = flowOf(emptyList())
+    override fun observeWardrobeUsageGaps(): Flow<WardrobeUsageGaps> =
+        flowOf(WardrobeUsageGaps(emptyList(), emptyList()))
 
     override fun observeOutfitWearEventCount(window: StatsWindow): Flow<Int> = flowOf(0)
 
@@ -294,6 +327,9 @@ class FakeStatsRepository(
         window: StatsWindow,
         isWeekend: Boolean,
     ): Flow<DressCode?> = flowOf(null)
+
+    override fun observeWardrobeMixDistribution(): Flow<WardrobeMixDistribution> =
+        flowOf(WardrobeMixDistribution(emptyList(), emptyList(), emptyList(), 0))
 }
 
 class FakeImportQueueRepository : ImportQueueRepository {
@@ -502,7 +538,10 @@ class FakeWeatherRepository(
 class FakeStylingEngineRepository(
     var suggestions: List<ScoredOutfit> = emptyList(),
 ) : StylingEngineRepository {
-    override suspend fun suggestOutfits(context: SuggestionContext): List<ScoredOutfit> = suggestions
+    override suspend fun suggestOutfits(
+        context: SuggestionContext,
+        count: Int,
+    ): List<ScoredOutfit> = suggestions
 
     override suspend fun suggestForItem(
         garmentId: GarmentId,
@@ -585,6 +624,12 @@ class FakeWardrobeIntelligenceRepository : WardrobeIntelligenceRepository {
     var healthScore: WardrobeHealthScore =
         WardrobeHealthScore(score = 0, rotationScore = 0, usagePercent = 0, forgottenCount = 0)
 
+    /** M22 regression test hook: simulates a real suspend-call failure
+     * (e.g. a weather-fetch exception) so [buildDailyBrief] can prove
+     * `HomeViewModel.loadAssistantState()` degrades safely instead of
+     * crashing. */
+    var buildDailyBriefError: Throwable? = null
+
     override fun observeGarmentInsights(garmentId: GarmentId): Flow<GarmentInsights?> = flowOf(null)
 
     override fun observeOutfitInsights(outfitId: OutfitId): Flow<OutfitInsights?> = flowOf(null)
@@ -605,7 +650,10 @@ class FakeWardrobeIntelligenceRepository : WardrobeIntelligenceRepository {
     override suspend fun buildDailyBrief(
         today: LocalDate,
         greeting: String,
-    ): DailyBrief = dailyBrief.copy(greeting = greeting)
+    ): DailyBrief {
+        buildDailyBriefError?.let { throw it }
+        return dailyBrief.copy(greeting = greeting)
+    }
 }
 
 class FakeSyncRepository : SyncRepository {
@@ -625,4 +673,41 @@ class FakeSyncRepository : SyncRepository {
     ) = Unit
 
     override fun observeHistory(limit: Int): Flow<List<SyncHistoryEntry>> = historyFlow.asStateFlow()
+}
+
+class FakeAiProviderSettingsRepository : AiProviderSettingsRepository {
+    val configsFlow =
+        MutableStateFlow(AiCapability.entries.associateWith { AiProviderConfig.onDeviceDefault(it) })
+    val activityFlow = MutableStateFlow<List<AiActivityEntry>>(emptyList())
+    val activeOperationsFlow = MutableStateFlow<List<AiActiveOperation>>(emptyList())
+    private val usageFlow = MutableStateFlow<List<AiUsageSummary>>(emptyList())
+
+    override fun observeConfig(capability: AiCapability): Flow<AiProviderConfig> =
+        configsFlow.asStateFlow().map { it.getValue(capability) }
+
+    override fun observeAllConfigs(): Flow<List<AiProviderConfig>> =
+        configsFlow.asStateFlow().map { map -> AiCapability.entries.map { map.getValue(it) } }
+
+    override suspend fun setConfig(config: AiProviderConfig) {
+        configsFlow.value = configsFlow.value + (config.capability to config)
+    }
+
+    override suspend fun hasApiKey(capability: AiCapability): Boolean = false
+
+    override suspend fun setApiKey(
+        capability: AiCapability,
+        apiKey: String,
+    ) = Unit
+
+    override suspend fun clearApiKey(capability: AiCapability) = Unit
+
+    override suspend fun testConnection(capability: AiCapability): AiConnectionTestResult =
+        AiConnectionTestResult.Failure("not configured for tests")
+
+    override fun observeUsageSummaries(): Flow<List<AiUsageSummary>> = usageFlow.asStateFlow()
+
+    override fun observeRecentActivity(limit: Int): Flow<List<AiActivityEntry>> =
+        activityFlow.asStateFlow().map { it.take(limit) }
+
+    override fun observeActiveOperations(): Flow<List<AiActiveOperation>> = activeOperationsFlow.asStateFlow()
 }

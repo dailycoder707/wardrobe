@@ -24,15 +24,28 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.wardrobe.app.core.model.garment.Brand
+import com.wardrobe.app.core.model.garment.Category
+import com.wardrobe.app.core.model.garment.Color
 import com.wardrobe.app.core.model.garment.DressCode
+import com.wardrobe.app.core.model.garment.Fabric
+import com.wardrobe.app.core.model.garment.Fit
+import com.wardrobe.app.core.model.garment.GarmentGender
+import com.wardrobe.app.core.model.garment.Material
 import com.wardrobe.app.core.model.garment.Season
+import com.wardrobe.app.core.model.garment.Tag
+import com.wardrobe.app.core.model.garment.WaterproofLevel
+import com.wardrobe.app.core.model.outfit.Occasion
+import com.wardrobe.app.core.ui.components.MultiSelectChips
 import com.wardrobe.app.core.ui.components.WardrobeFilterChip
 
-/** `docs/design/component-library.md`'s Bottom Sheet — a modal filter builder
- * covering every facet the master prompt asks for: category, color, brand,
- * material, season, dress code, tag, favorite, never/recently worn, price
- * range. Applied live (each toggle updates [onFiltersChange] immediately) —
- * "Done" just dismisses, there's no separate "Apply" step to forget to tap. */
+/** `docs/design/component-library.md`'s Bottom Sheet — a modal filter
+ * builder covering every filterable facet a [com.wardrobe.app.core.model.garment.Garment]
+ * genuinely carries (M17). Every section is multi-select ([MultiSelectChips]):
+ * selections within one section are OR'd, sections are AND'd together (see
+ * [matchesClosetFilters]). Applied live (each toggle updates
+ * [onFiltersChange] immediately) — "Done" just dismisses, there's no
+ * separate "Apply" step to forget to tap. */
 @OptIn(ExperimentalLayoutApi::class, androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 fun ClosetFilterSheet(
@@ -52,6 +65,7 @@ fun ClosetFilterSheet(
             verticalArrangement = Arrangement.spacedBy(20.dp),
         ) {
             FilterSheetHeader(onClearAll)
+            PresetsSection(filters, onFiltersChange)
             FilterSheetToggles(filters, onFiltersChange)
             FilterSheetChipSections(filters, options, onFiltersChange)
             PriceRangeSection(filters = filters, onFiltersChange = onFiltersChange)
@@ -71,6 +85,30 @@ private fun FilterSheetHeader(onClearAll: () -> Unit) {
     }
 }
 
+/** A "what are you dressing for" shortcut row — each preset just replaces
+ * [ClosetFilterState.dressCodes], so it's an ordinary, removable filter, not
+ * a separate mode (M17 Part 7J, see [ClosetFilterPreset]'s own doc comment
+ * for why these are DressCode-based rather than Occasion-based). */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun PresetsSection(
+    filters: ClosetFilterState,
+    onFiltersChange: (ClosetFilterState) -> Unit,
+) {
+    FilterSection(title = "Quick filters") {
+        ClosetFilterPreset.entries.forEach { preset ->
+            WardrobeFilterChip(
+                label = preset.label,
+                selected = filters.dressCodes == preset.dressCodes,
+                onClick = {
+                    val next = if (filters.dressCodes == preset.dressCodes) emptySet() else preset.dressCodes
+                    onFiltersChange(filters.copy(dressCodes = next))
+                },
+            )
+        }
+    }
+}
+
 @Composable
 private fun FilterSheetToggles(
     filters: ClosetFilterState,
@@ -87,85 +125,114 @@ private fun FilterSheetChipSections(
     options: ClosetFilterOptions,
     onFiltersChange: (ClosetFilterState) -> Unit,
 ) {
-    SingleSelectFilterSection(
-        title = "Category",
-        items = options.categories,
-        isSelected = { filters.category == it.id },
-        label = { it.name },
-        onToggle = { onFiltersChange(filters.copy(category = toggled(filters.category, it.id))) },
-    )
-    SingleSelectFilterSection(
-        title = "Color",
-        items = options.colors,
-        isSelected = { filters.color == it.id },
-        label = { it.name },
-        onToggle = { onFiltersChange(filters.copy(color = toggled(filters.color, it.id))) },
-    )
-    SingleSelectFilterSection(
-        title = "Brand",
-        items = options.brands,
-        isSelected = { filters.brand == it.id },
-        label = { it.name },
-        onToggle = { onFiltersChange(filters.copy(brand = toggled(filters.brand, it.id))) },
-    )
-    SingleSelectFilterSection(
-        title = "Material",
-        items = options.materials,
-        isSelected = { filters.material == it.id },
-        label = { it.name },
-        onToggle = { onFiltersChange(filters.copy(material = toggled(filters.material, it.id))) },
-    )
-    SingleSelectFilterSection(
-        title = "Tag",
-        items = options.tags,
-        isSelected = { filters.tag == it.id },
-        label = { it.name },
-        onToggle = { onFiltersChange(filters.copy(tag = toggled(filters.tag, it.id))) },
-    )
-    SingleSelectFilterSection(
-        title = "Season",
-        items = Season.entries,
-        isSelected = { filters.season == it },
-        label = { it.name.lowercase().replaceFirstChar(Char::uppercase) },
-        onToggle = { onFiltersChange(filters.copy(season = toggled(filters.season, it))) },
-    )
-    SingleSelectFilterSection(
-        title = "Dress Code",
-        items = DressCode.entries,
-        isSelected = { filters.dressCode == it },
-        label = {
-            it.name
-                .lowercase()
-                .replace('_', ' ')
-                .replaceFirstChar(Char::uppercase)
+    ReferenceFacetSections(filters, options, onFiltersChange)
+    EnumFacetSections(filters, onFiltersChange)
+}
+
+@Composable
+private fun ReferenceFacetSections(
+    filters: ClosetFilterState,
+    options: ClosetFilterOptions,
+    onFiltersChange: (ClosetFilterState) -> Unit,
+) {
+    val categoriesById = options.categories.associateBy { it.id }
+    MultiSelectChips(
+        label = "Category",
+        allOptions = groupCategoriesForFilterUi(options.categories),
+        selected = options.categories.filterTo(mutableSetOf()) { it.id in filters.categories },
+        labelFor = { category: Category -> category.displayLabel(categoriesById) },
+        onToggle = { category: Category ->
+            onFiltersChange(filters.copy(categories = filters.categories.toggled(category.id)))
         },
-        onToggle = { onFiltersChange(filters.copy(dressCode = toggled(filters.dressCode, it))) },
+    )
+    MultiSelectChips(
+        label = "Color",
+        allOptions = options.colors,
+        selected = options.colors.filterTo(mutableSetOf()) { it.id in filters.colors },
+        labelFor = { color: Color -> color.name },
+        onToggle = { color: Color -> onFiltersChange(filters.copy(colors = filters.colors.toggled(color.id))) },
+    )
+    MultiSelectChips(
+        label = "Brand",
+        allOptions = options.brands,
+        selected = options.brands.filterTo(mutableSetOf()) { it.id in filters.brands },
+        labelFor = { brand: Brand -> brand.name },
+        onToggle = { brand: Brand -> onFiltersChange(filters.copy(brands = filters.brands.toggled(brand.id))) },
+    )
+    MultiSelectChips(
+        label = "Material",
+        allOptions = options.materials,
+        selected = options.materials.filterTo(mutableSetOf()) { it.id in filters.materials },
+        labelFor = { material: Material -> material.name },
+        onToggle = { material: Material ->
+            onFiltersChange(filters.copy(materials = filters.materials.toggled(material.id)))
+        },
+    )
+    MultiSelectChips(
+        label = "Fabric",
+        allOptions = options.fabrics,
+        selected = options.fabrics.filterTo(mutableSetOf()) { it.id in filters.fabrics },
+        labelFor = { fabric: Fabric -> fabric.name },
+        onToggle = { fabric: Fabric -> onFiltersChange(filters.copy(fabrics = filters.fabrics.toggled(fabric.id))) },
+    )
+    MultiSelectChips(
+        label = "Tag",
+        allOptions = options.tags,
+        selected = options.tags.filterTo(mutableSetOf()) { it.id in filters.tags },
+        labelFor = { tag: Tag -> tag.name },
+        onToggle = { tag: Tag -> onFiltersChange(filters.copy(tags = filters.tags.toggled(tag.id))) },
+    )
+    MultiSelectChips(
+        label = "Occasion",
+        allOptions = options.occasions,
+        selected = options.occasions.filterTo(mutableSetOf()) { it.id in filters.occasions },
+        labelFor = { occasion: Occasion -> occasion.name },
+        onToggle = { occasion: Occasion ->
+            onFiltersChange(filters.copy(occasions = filters.occasions.toggled(occasion.id)))
+        },
     )
 }
 
-/** Single-select-with-deselect toggle: tapping the already-selected value clears it. */
-private fun <T> toggled(
-    current: T?,
-    value: T,
-): T? = if (current == value) null else value
-
 @Composable
-private fun <T> SingleSelectFilterSection(
-    title: String,
-    items: List<T>,
-    isSelected: (T) -> Boolean,
-    label: (T) -> String,
-    onToggle: (T) -> Unit,
+private fun EnumFacetSections(
+    filters: ClosetFilterState,
+    onFiltersChange: (ClosetFilterState) -> Unit,
 ) {
-    FilterSection(title = title) {
-        items.forEach { item ->
-            WardrobeFilterChip(
-                label = label(item),
-                selected = isSelected(item),
-                onClick = { onToggle(item) },
-            )
-        }
-    }
+    MultiSelectChips(
+        label = "Season",
+        allOptions = Season.entries,
+        selected = filters.seasons,
+        labelFor = { season: Season -> season.displayLabel() },
+        onToggle = { onFiltersChange(filters.copy(seasons = filters.seasons.toggled(it))) },
+    )
+    MultiSelectChips(
+        label = "Dress Code",
+        allOptions = DressCode.entries,
+        selected = filters.dressCodes,
+        labelFor = { dressCode: DressCode -> dressCode.displayLabel() },
+        onToggle = { onFiltersChange(filters.copy(dressCodes = filters.dressCodes.toggled(it))) },
+    )
+    MultiSelectChips(
+        label = "Fit",
+        allOptions = Fit.entries,
+        selected = filters.fits,
+        labelFor = { fit: Fit -> fit.displayLabel() },
+        onToggle = { onFiltersChange(filters.copy(fits = filters.fits.toggled(it))) },
+    )
+    MultiSelectChips(
+        label = "Gender",
+        allOptions = GarmentGender.entries,
+        selected = filters.genders,
+        labelFor = { gender: GarmentGender -> gender.displayLabel() },
+        onToggle = { onFiltersChange(filters.copy(genders = filters.genders.toggled(it))) },
+    )
+    MultiSelectChips(
+        label = "Waterproofing",
+        allOptions = WaterproofLevel.entries,
+        selected = filters.waterproofLevels,
+        labelFor = { level: WaterproofLevel -> level.displayLabel() },
+        onToggle = { onFiltersChange(filters.copy(waterproofLevels = filters.waterproofLevels.toggled(it))) },
+    )
 }
 
 @Composable

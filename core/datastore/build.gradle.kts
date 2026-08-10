@@ -33,4 +33,8 @@ dependencies {
 
     testImplementation(libs.junit4)
     testImplementation(libs.kotlinx.coroutines.test)
+    // Add-to-Wardrobe v2 — AiProviderPreferencesDataStoreTest needs a real,
+    // temp-file-backed DataStore<Preferences>, which needs a real Context.
+    testImplementation(libs.robolectric)
+    testImplementation(libs.androidx.test.ext.junit)
 }

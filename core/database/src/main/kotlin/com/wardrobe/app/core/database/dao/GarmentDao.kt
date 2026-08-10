@@ -10,7 +10,9 @@ import androidx.room.Update
 import com.wardrobe.app.core.database.entity.GarmentColorPaletteCrossRef
 import com.wardrobe.app.core.database.entity.GarmentDressCodeCrossRef
 import com.wardrobe.app.core.database.entity.GarmentEntity
+import com.wardrobe.app.core.database.entity.GarmentFabricCrossRef
 import com.wardrobe.app.core.database.entity.GarmentMaterialCrossRef
+import com.wardrobe.app.core.database.entity.GarmentOccasionCrossRef
 import com.wardrobe.app.core.database.entity.GarmentSeasonCrossRef
 import com.wardrobe.app.core.database.entity.GarmentTagCrossRef
 import com.wardrobe.app.core.model.garment.DressCode
@@ -158,4 +160,16 @@ interface GarmentDao {
 
     @Query("DELETE FROM garment_dress_codes WHERE garmentId = :garmentId")
     suspend fun clearDressCodes(garmentId: Long)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertFabrics(entries: List<GarmentFabricCrossRef>)
+
+    @Query("DELETE FROM garment_fabrics WHERE garmentId = :garmentId")
+    suspend fun clearFabrics(garmentId: Long)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertOccasions(entries: List<GarmentOccasionCrossRef>)
+
+    @Query("DELETE FROM garment_occasions WHERE garmentId = :garmentId")
+    suspend fun clearOccasions(garmentId: Long)
 }

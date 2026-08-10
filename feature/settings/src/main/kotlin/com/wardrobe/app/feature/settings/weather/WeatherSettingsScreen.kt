@@ -22,13 +22,13 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.wardrobe.app.core.model.weather.TemperatureUnit
 import com.wardrobe.app.core.model.weather.WeatherPreferences
 
@@ -44,7 +44,7 @@ fun WeatherSettingsScreen(
     modifier: Modifier = Modifier,
     viewModel: WeatherSettingsViewModel = hiltViewModel(),
 ) {
-    val prefs by viewModel.preferences.collectAsState()
+    val prefs by viewModel.preferences.collectAsStateWithLifecycle()
     val locationPermissionLauncher =
         rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
             viewModel.update { it.copy(useDeviceLocation = granted) }

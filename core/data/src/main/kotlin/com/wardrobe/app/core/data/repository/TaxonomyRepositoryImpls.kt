@@ -4,30 +4,35 @@ import com.wardrobe.app.core.data.mapper.toDomain
 import com.wardrobe.app.core.database.dao.BrandDao
 import com.wardrobe.app.core.database.dao.CategoryDao
 import com.wardrobe.app.core.database.dao.ColorDao
+import com.wardrobe.app.core.database.dao.FabricDao
 import com.wardrobe.app.core.database.dao.MaterialDao
 import com.wardrobe.app.core.database.dao.OccasionDao
 import com.wardrobe.app.core.database.dao.TagDao
 import com.wardrobe.app.core.database.entity.BrandEntity
 import com.wardrobe.app.core.database.entity.CategoryEntity
 import com.wardrobe.app.core.database.entity.ColorEntity
+import com.wardrobe.app.core.database.entity.FabricEntity
 import com.wardrobe.app.core.database.entity.MaterialEntity
 import com.wardrobe.app.core.database.entity.OccasionEntity
 import com.wardrobe.app.core.database.entity.TagEntity
 import com.wardrobe.app.core.domain.repository.BrandRepository
 import com.wardrobe.app.core.domain.repository.CategoryRepository
 import com.wardrobe.app.core.domain.repository.ColorRepository
+import com.wardrobe.app.core.domain.repository.FabricRepository
 import com.wardrobe.app.core.domain.repository.MaterialRepository
 import com.wardrobe.app.core.domain.repository.OccasionRepository
 import com.wardrobe.app.core.domain.repository.TagRepository
 import com.wardrobe.app.core.model.common.BrandId
 import com.wardrobe.app.core.model.common.CategoryId
 import com.wardrobe.app.core.model.common.ColorId
+import com.wardrobe.app.core.model.common.FabricId
 import com.wardrobe.app.core.model.common.MaterialId
 import com.wardrobe.app.core.model.common.OccasionId
 import com.wardrobe.app.core.model.common.TagId
 import com.wardrobe.app.core.model.garment.Brand
 import com.wardrobe.app.core.model.garment.Category
 import com.wardrobe.app.core.model.garment.Color
+import com.wardrobe.app.core.model.garment.Fabric
 import com.wardrobe.app.core.model.garment.Material
 import com.wardrobe.app.core.model.garment.Tag
 import com.wardrobe.app.core.model.outfit.Occasion
@@ -108,6 +113,28 @@ class MaterialRepositoryImpl
             MaterialId(
                 dao.insert(
                     MaterialEntity(
+                        name = name,
+                        syncId =
+                            java.util.UUID
+                                .randomUUID()
+                                .toString(),
+                        updatedAt = System.currentTimeMillis(),
+                    ),
+                ),
+            )
+    }
+
+class FabricRepositoryImpl
+    @Inject
+    constructor(
+        private val dao: FabricDao,
+    ) : FabricRepository {
+        override fun observeAll(): Flow<List<Fabric>> = dao.observeAll().map { it.map(FabricEntity::toDomain) }
+
+        override suspend fun create(name: String): FabricId =
+            FabricId(
+                dao.insert(
+                    FabricEntity(
                         name = name,
                         syncId =
                             java.util.UUID

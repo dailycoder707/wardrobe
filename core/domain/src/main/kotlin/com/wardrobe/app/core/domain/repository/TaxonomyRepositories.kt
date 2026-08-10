@@ -3,12 +3,14 @@ package com.wardrobe.app.core.domain.repository
 import com.wardrobe.app.core.model.common.BrandId
 import com.wardrobe.app.core.model.common.CategoryId
 import com.wardrobe.app.core.model.common.ColorId
+import com.wardrobe.app.core.model.common.FabricId
 import com.wardrobe.app.core.model.common.MaterialId
 import com.wardrobe.app.core.model.common.OccasionId
 import com.wardrobe.app.core.model.common.TagId
 import com.wardrobe.app.core.model.garment.Brand
 import com.wardrobe.app.core.model.garment.Category
 import com.wardrobe.app.core.model.garment.Color
+import com.wardrobe.app.core.model.garment.Fabric
 import com.wardrobe.app.core.model.garment.Material
 import com.wardrobe.app.core.model.garment.Tag
 import com.wardrobe.app.core.model.outfit.Occasion
@@ -44,6 +46,14 @@ interface MaterialRepository {
     fun observeAll(): Flow<List<Material>>
 
     suspend fun create(name: String): MaterialId
+}
+
+/** Weave/construction reference data — deliberately distinct from
+ * [MaterialRepository] (fiber content), see [Fabric]'s KDoc. */
+interface FabricRepository {
+    fun observeAll(): Flow<List<Fabric>>
+
+    suspend fun create(name: String): FabricId
 }
 
 interface BrandRepository {

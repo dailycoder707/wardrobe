@@ -102,6 +102,51 @@ fun DistributionSections(state: InsightsUiState) {
     }
 }
 
+/** M21 — "own it or not" composition mix, distinct from [DistributionSections]'
+ * wear-based charts above: a material/fabric/occasion your closet covers
+ * regardless of how often it's actually worn. Each chart is absent entirely
+ * when nothing is tagged — never an empty chart implying a real measurement
+ * (Part 12). */
+@Composable
+fun WardrobeMixSection(state: InsightsUiState) {
+    val charts = state.charts
+    val hasAnyMix =
+        charts.materialDistribution.isNotEmpty() ||
+            charts.fabricDistribution.isNotEmpty() ||
+            charts.occasionCoverage.isNotEmpty()
+    if (!hasAnyMix) return
+    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        if (charts.materialDistribution.isNotEmpty()) {
+            InsightSectionCard(title = "Material Mix", subtitle = "What your closet is actually made of.") {
+                BarChart(charts.materialDistribution, modifier = Modifier.fillMaxWidth())
+            }
+        }
+        if (charts.fabricDistribution.isNotEmpty()) {
+            InsightSectionCard(title = "Fabric Mix", subtitle = "Weave and construction, not fiber content.") {
+                BarChart(charts.fabricDistribution, modifier = Modifier.fillMaxWidth())
+            }
+        }
+        if (charts.occasionCoverage.isNotEmpty()) {
+            InsightSectionCard(
+                title = "Occasion Coverage",
+                subtitle = "How many pieces you have ready for each occasion — including any at zero.",
+            ) {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    BarChart(charts.occasionCoverage, modifier = Modifier.fillMaxWidth())
+                    if (state.charts.garmentsWithoutOccasionCount > 0) {
+                        Text(
+                            "${state.charts.garmentsWithoutOccasionCount} items have no occasion tagged, " +
+                                "so they aren't counted above.",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = WardrobeTheme.extendedColors.textSecondary,
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
 @Composable
 fun ActivityChartSections(state: InsightsUiState) {
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {

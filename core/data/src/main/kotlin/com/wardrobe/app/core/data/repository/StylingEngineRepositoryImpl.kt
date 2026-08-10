@@ -36,7 +36,7 @@ import java.time.Clock
 import java.time.LocalDate
 import javax.inject.Inject
 
-private const val DEFAULT_SUGGESTION_COUNT = 3
+internal const val DEFAULT_SUGGESTION_COUNT = 3
 
 /** Groups Phase 7's context-refinement dependencies so
  * [StylingEngineRepositoryImpl]'s own constructor stays under detekt's
@@ -91,14 +91,18 @@ class StylingEngineRepositoryImpl
         @Volatile
         private var runDiagnostics = RecommendationRunDiagnostics()
 
-        override suspend fun suggestOutfits(context: SuggestionContext): List<ScoredOutfit> {
+        override suspend fun suggestOutfits(
+            context: SuggestionContext,
+            count: Int,
+        ): List<ScoredOutfit> {
             val input = loadEngineInput(context)
-            val generated = generateRecommendations(input, DEFAULT_SUGGESTION_COUNT)
+            val generated = generateRecommendations(input, count)
             val resolution =
                 prependPlannedOutfit(
                     contextDependencies.wearEventRepository,
                     contextDependencies.outfitRepository,
                     context.date,
+                    LocalDate.now(clock),
                     generated,
                 )
             if (resolution.plannedOutfitUsed) runDiagnostics = runDiagnostics.copy(plannedOutfitUsed = true)
@@ -161,7 +165,12 @@ class StylingEngineRepositoryImpl
 
         override fun lastRunDiagnostics(): RecommendationRunDiagnostics = runDiagnostics
 
-        private suspend fun loadEngineInput(suggestionContext: SuggestionContext): EngineInput {
+        /** `internal`, not `private`: M12's `StylingEngineRouter` (`core:data`'s
+         * `ai` package, same module) reuses this exact loader rather than
+         * duplicating the context-resolution logic it already has, so the
+         * cloud styling path scores/validates against precisely the same
+         * wardrobe/weather/rules snapshot the on-device engine would have used. */
+        internal suspend fun loadEngineInput(suggestionContext: SuggestionContext): EngineInput {
             val today = LocalDate.now(clock)
             val allActive = garmentRepository.observeGarments(GarmentFilter(status = GarmentStatus.ACTIVE)).first()
             val awayOnTrip = currentlyPackedGarmentIds(today)
@@ -179,6 +188,7 @@ class StylingEngineRepositoryImpl
                     contextDependencies.wearEventRepository,
                     contextDependencies.occasionRepository,
                     suggestionContext.date,
+                    suggestionContext.occasionId,
                 )
 
             val input =

@@ -9,8 +9,11 @@ import com.wardrobe.app.core.model.common.ColorId
 import com.wardrobe.app.core.model.common.GarmentId
 import com.wardrobe.app.core.model.common.ImageMetadataId
 import com.wardrobe.app.core.model.common.Money
+import com.wardrobe.app.core.model.common.OccasionId
 import com.wardrobe.app.core.model.common.TagId
 import com.wardrobe.app.core.model.garment.ColorPaletteEntry
+import com.wardrobe.app.core.model.garment.Fabric
+import com.wardrobe.app.core.model.garment.FabricComposition
 import com.wardrobe.app.core.model.garment.Garment
 import com.wardrobe.app.core.model.garment.ImageMetadata
 import com.wardrobe.app.core.model.garment.Material
@@ -44,6 +47,7 @@ internal fun ImageMetadataEntity.toDomain() =
 internal fun GarmentWithRelations.toDomain(
     colorsById: Map<Long, DomainColor>,
     materialsById: Map<Long, Material>,
+    fabricsById: Map<Long, Fabric>,
 ): Garment {
     val g: GarmentEntity = garment
     return Garment(
@@ -82,6 +86,15 @@ internal fun GarmentWithRelations.toDomain(
         images = images.map(ImageMetadataEntity::toDomain),
         createdAt = Instant.ofEpochMilli(g.createdAt),
         updatedAt = Instant.ofEpochMilli(g.updatedAt),
+        secondaryColorId = g.secondaryColorId?.let(::ColorId),
+        fabrics =
+            fabrics.mapNotNull { ref ->
+                fabricsById[ref.fabricId]?.let { fabric -> FabricComposition(fabric, ref.percentage) }
+            },
+        occasionIds = occasions.map { OccasionId(it.occasionId) },
+        neckline = g.neckline,
+        gender = g.gender,
+        waterproofLevel = g.waterproofLevel,
     )
 }
 
@@ -115,4 +128,8 @@ internal fun Garment.toEntity(searchText: String) =
         searchText = searchText,
         createdAt = createdAt.toEpochMilli(),
         updatedAt = updatedAt.toEpochMilli(),
+        secondaryColorId = secondaryColorId?.value,
+        neckline = neckline,
+        gender = gender,
+        waterproofLevel = waterproofLevel,
     )

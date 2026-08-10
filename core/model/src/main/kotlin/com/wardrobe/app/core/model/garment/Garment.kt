@@ -5,6 +5,7 @@ import com.wardrobe.app.core.model.common.CategoryId
 import com.wardrobe.app.core.model.common.ColorId
 import com.wardrobe.app.core.model.common.GarmentId
 import com.wardrobe.app.core.model.common.Money
+import com.wardrobe.app.core.model.common.OccasionId
 import java.time.Instant
 import java.time.LocalDate
 
@@ -69,6 +70,23 @@ data class Garment(
      * Add-to-Wardrobe ingestion flow; defaulted so every existing construction
      * site keeps compiling unchanged. */
     val notes: String? = null,
+    /** The item's secondary color, if one was confidently distinguished from
+     * [primaryColorId] — a single slot, not the full multi-color [palette],
+     * matching how [primaryColorId] is itself a single-slot convenience over
+     * that same list. */
+    val secondaryColorId: ColorId? = null,
+    /** Fabric/weave composition (Denim, Jersey, Twill...) — deliberately
+     * distinct from [materials] (fiber content: Cotton, Wool, Polyester...);
+     * `garment_fabrics` mirrors `garment_materials`' shape exactly. */
+    val fabrics: List<FabricComposition> = emptyList(),
+    /** Occasions this item suits (`garment_occasions`, reusing the existing,
+     * user-extensible [com.wardrobe.app.core.model.outfit.Occasion] reference
+     * table already used by `Outfit`) — deliberately independent of
+     * [dressCodes] (formality), not a redundant re-encoding of it. */
+    val occasionIds: List<OccasionId> = emptyList(),
+    val neckline: Neckline? = null,
+    val gender: GarmentGender? = null,
+    val waterproofLevel: WaterproofLevel? = null,
 ) {
     init {
         warmthRating?.let { require(it in RATING_RANGE) { "warmthRating must be $RATING_RANGE, was $it" } }

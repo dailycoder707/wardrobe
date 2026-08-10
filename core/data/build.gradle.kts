@@ -34,6 +34,10 @@ dependencies {
     implementation(project(":core:image"))
     implementation(project(":core:sync"))
     implementation(project(":core:tryon"))
+    // Add-to-Wardrobe v2 (ADR-012) — the per-capability Routers (this is the
+    // composition root that can see `core:image`, `core:ai`, and
+    // `core:datastore` together) live here.
+    implementation(project(":core:ai"))
 
     // core:sync exposes ZXing/kotlinx.serialization only as `implementation`, so
     // the sync engine's own protocol encode/decode here needs a direct

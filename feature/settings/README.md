@@ -7,7 +7,7 @@ silent black box), and Backup/Restore/Export/Import.
 ## Packages
 | Package | Screen(s) |
 |---|---|
-| `profile/` | Occupation, sizing, menswear/womenswear/both, free-text preference blurb, preferred brands, budget bands — **not built yet, Phase 5f territory** |
+| `profile/` | **Built in M15** — `ProfileScreen`/`ProfileViewModel`: the *identity* profile (display name, avatar), editing `PersonalizationSettings` — see `docs/adr/ADR-014-m15-user-profile-and-ai-home.md`. Also shows a compact real AI-provider/sync status summary, linking to `aiproviders/`/`sync/` rather than duplicating them. (This package's original Phase 7 description named a *style*-preference screen — occupation, sizing, budget, preferred brands — that turned out to already be built elsewhere, as `feature:outfits/preferences/StylistPreferencesScreen.kt`, under a different name; that content lives there, not here.) |
 | `rules/` | The style-rules list — human-readable, user-extendable, deletable — **not built yet, Phase 5f territory** |
 | `backup/` | Backup/Restore — foreground-service-backed WorkManager jobs with a visible progress notification (Phase 1 Section 19/20) — **not built yet, Phase 5f territory** |
 | `exportimport/` | Export a single look/item as an image/PDF via the Android share sheet — this is also the mechanism replacing "friends/private sharing" (Section 0 DEFER) — **not built yet, Phase 5f territory** |
@@ -52,3 +52,15 @@ class this deliberately avoids. `feature:settings/build.gradle.kts` needed
 first Compose UI test (`WardrobeSyncScreenTest`) crashed with a
 `RoboMonitoringInstrumentation` exception without it; `feature:closet`
 already had this setting from its own earlier Compose UI tests.
+
+## M15 — Profile (identity)
+
+This module's fourth real screen, `profile/`. Reached from a new avatar
+button in `feature:closet`'s Home header (still the only entry point —
+the Settings-hub gap noted above is unchanged). Edits
+`PersonalizationRepository` (already existed, `core:domain`/`core:data`)
+directly — no new persistence. Gained two new dependencies purely for the
+avatar picker: `core:image` (reuses `GalleryImportSource.copyAvatarImage`,
+a small addition to that existing class) and `coil.compose` (renders the
+result — the same library, same `implementation`-only scoping, `core:ui`'s
+`GarmentTile` already uses). See `docs/adr/ADR-014-m15-user-profile-and-ai-home.md`.

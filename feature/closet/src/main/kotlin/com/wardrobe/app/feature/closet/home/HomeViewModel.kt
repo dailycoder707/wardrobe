@@ -2,6 +2,7 @@ package com.wardrobe.app.feature.closet.home
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.wardrobe.app.core.domain.repository.AiProviderSettingsRepository
 import com.wardrobe.app.core.domain.repository.BrandRepository
 import com.wardrobe.app.core.domain.repository.CategoryRepository
 import com.wardrobe.app.core.domain.repository.ColorRepository
@@ -37,6 +38,7 @@ import com.wardrobe.app.core.model.weather.headline
 import com.wardrobe.app.core.model.weather.updatedAtLabel
 import com.wardrobe.app.feature.closet.common.toTileUiModel
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -80,6 +82,7 @@ class HomeAssistantRepositories
         val syncRepository: SyncRepository,
         val wardrobeIntelligenceRepository: WardrobeIntelligenceRepository,
         val tripRepository: TripRepository,
+        val aiProviderSettingsRepository: AiProviderSettingsRepository,
     )
 
 /** Groups the repositories [HomeViewModel.uiState]'s own reactive `combine`
@@ -180,6 +183,38 @@ class HomeViewModel
         init {
             viewModelScope.launch { loadAssistantState() }
             viewModelScope.launch { observeSyncCompletion() }
+            viewModelScope.launch { observeRecentAiActivity() }
+            viewModelScope.launch { observeActiveAiOperation() }
+        }
+
+        /** M18 — a live collection (not [loadAssistantState]'s one-shot
+         * `.first()` reads) so a capability call that completes while Home
+         * stays open updates this list without the user leaving and
+         * reopening the screen. */
+        private suspend fun observeRecentAiActivity() {
+            assistantRepositories.aiProviderSettingsRepository
+                .observeRecentActivity()
+                .catch { /* M22: a transient read failure leaves the existing list as-is, never crashes Home. */ }
+                .collect { entries ->
+                    val now = Instant.now(clock)
+                    val uiModels = entries.map { entry -> entry.toUiModel(now) }
+                    mutableAssistantState.update { it.copy(recentAiActivity = uiModels) }
+                }
+        }
+
+        /** M18's "is AI currently doing something" signal — a live
+         * projection of `AiJobManager`'s own job ledger
+         * ([com.wardrobe.app.core.model.ai.AiActiveOperation]), never a
+         * fabricated "thinking" state. `null` the instant nothing is
+         * genuinely `PENDING`/`RUNNING`. */
+        private suspend fun observeActiveAiOperation() {
+            assistantRepositories.aiProviderSettingsRepository
+                .observeActiveOperations()
+                .catch { /* M22: a transient read failure leaves the existing label as-is, never crashes Home. */ }
+                .collect { operations ->
+                    val label = operations.minByOrNull { it.startedAt }?.capability?.inProgressLabel()
+                    mutableAssistantState.update { it.copy(activeAiOperationLabel = label) }
+                }
         }
 
         /** Phase 8 — shows the plain-language "Wardrobe updated just now"
@@ -193,6 +228,7 @@ class HomeViewModel
                 .map { it.lastSyncAt }
                 .distinctUntilChanged()
                 .drop(1)
+                .catch { /* M22: a transient read failure just skips this confirmation, never crashes Home. */ }
                 .collect {
                     mutableAssistantState.update { state ->
                         state.copy(syncConfirmationMessage = "Wardrobe updated just now")
@@ -207,8 +243,27 @@ class HomeViewModel
          * recommendation internally (reused for both this screen's weather
          * line and recommendation preview, rather than fetching weather
          * twice); the health score, attention-item count, and trip reminder
-         * are separate, cheap on-demand reads alongside it. */
+         * are separate, cheap on-demand reads alongside it.
+         *
+         * M22 fix: this whole body used to run with no error handling at
+         * all — a single throwing suspend call anywhere in this chain (e.g.
+         * `buildDailyBrief`'s weather fetch) would leave an unhandled
+         * exception in a bare `viewModelScope.launch`, which crashes the app
+         * rather than just leaving Home's assistant cards absent. Every real
+         * failure now degrades to "stop loading, show nothing new" — never a
+         * fabricated value, matching every card's own existing null-means-
+         * absent contract. */
         private suspend fun loadAssistantState() {
+            try {
+                loadAssistantStateOrThrow()
+            } catch (cancellation: CancellationException) {
+                throw cancellation
+            } catch (_: Exception) {
+                mutableAssistantState.update { it.copy(isLoading = false) }
+            }
+        }
+
+        private suspend fun loadAssistantStateOrThrow() {
             val personalization = personalizationRepository.observe().first()
             val today = LocalDate.now(clock)
             val greeting = if (personalization.showGreeting) personalization.greetingText(LocalTime.now(clock)) else ""
@@ -237,6 +292,7 @@ class HomeViewModel
                     null
                 }
             val healthScore = wardrobeIntelligence.observeWardrobeHealthScore().first()
+            val aiConfigs = assistantRepositories.aiProviderSettingsRepository.observeAllConfigs().first()
             mutableAssistantState.update {
                 it.copy(
                     isLoading = false,
@@ -252,6 +308,8 @@ class HomeViewModel
                             .observeGarments(GarmentFilter(status = GarmentStatus.ACTIVE))
                             .first()
                             .count { it.isInLaundry },
+                    cloudAiConfiguredCount = aiConfigs.count { it.isCloudReady() },
+                    totalAiCapabilities = aiConfigs.size,
                 )
             }
         }
@@ -317,6 +375,7 @@ class HomeViewModel
                 homeTitle = personalization.customHomeTitle?.takeUnless { it.isBlank() } ?: "My Wardrobe",
                 showGreeting = personalization.showGreeting,
                 showWardrobeHealthCard = personalization.showWardrobeHealthCard,
+                avatarImageUri = personalization.avatarImageUri,
                 currentDateText = LocalDate.now(clock).format(DateTimeFormatter.ofLocalizedDate(FormatStyle.FULL)),
                 summary =
                     WardrobeSummaryUiModel(

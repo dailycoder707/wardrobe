@@ -79,6 +79,16 @@ mlkitSubjectSegmentation = "16.0.0-beta1"
 # see phase-10-personal-virtual-tryon.md and ADR-011.
 mlkitPoseDetection = "18.0.0-beta5"
 
+# ML Kit Text Recognition and Face Detection (Add-to-Wardrobe v2, `core:ai`) —
+# both stable, confirmed against Google's real Maven group-index on
+# 2026-08-05: 16.0.1 is the latest stable `text-recognition` (16.0.0-beta1..6
+# precede it), 16.1.7 the latest stable `face-detection`. On-device only, no
+# Play Services round-trip. Text Recognition backs `OnDeviceMetadataEngine`'s
+# OCR-based brand guess; Face Detection backs `PrivacyPreprocessor`'s
+# pre-upload face blur (ADR-012).
+mlkitTextRecognition = "16.0.1"
+mlkitFaceDetection = "16.1.7"
+
 # --- Coil ---
 coil = "3.5.0"
 
@@ -91,7 +101,6 @@ okhttp = "5.4.0"
 
 # --- Testing ---
 junit4 = "4.13.2"
-junit5 = "6.1.2"
 mockk = "1.14.11"
 turbine = "1.2.1"
 androidxTestJunit = "1.3.0"
@@ -109,6 +118,12 @@ macrobenchmark = "1.4.1"
 
 # --- Home-screen widget (feature:widget) ---
 glance = "1.1.1"
+
+# --- Secure secret storage (Add-to-Wardrobe v2, `core:ai`'s
+# `EncryptedApiKeyStore`, ADR-012) — 1.1.0 is the latest stable release
+# confirmed against Google's real Maven metadata on 2026-08-05
+# (1.0.0-alpha01..1.1.0-beta01 precede it) ---
+securityCrypto = "1.1.0"
 
 # --- QR pairing (Phase 8, core:sync) ---
 # Pure Java, no Android/Play Services dependency — deliberately not ML Kit
@@ -186,6 +201,11 @@ mlkit-subject-segmentation = { group = "com.google.android.gms", name = "play-se
 # hosted-model variant — Phase 10, see the version comment above.
 mlkit-pose-detection = { group = "com.google.mlkit", name = "pose-detection", version.ref = "mlkitPoseDetection" }
 
+# ML Kit Text Recognition / Face Detection (Add-to-Wardrobe v2, `core:ai`) —
+# on-device only, see the version comment above.
+mlkit-text-recognition = { group = "com.google.mlkit", name = "text-recognition", version.ref = "mlkitTextRecognition" }
+mlkit-face-detection = { group = "com.google.mlkit", name = "face-detection", version.ref = "mlkitFaceDetection" }
+
 # Coil (Coil 3 — group changed to io.coil-kt.coil3, coil-base renamed to coil-core).
 # No coil-network-* artifact: every image this app loads is a local file (Section
 # 17, Phase 1) — there is no remote image URL anywhere in this product.
@@ -200,10 +220,16 @@ retrofit-core = { group = "com.squareup.retrofit2", name = "retrofit", version.r
 retrofit-kotlinx-serialization-converter = { group = "com.squareup.retrofit2", name = "converter-kotlinx-serialization", version.ref = "retrofit" }
 okhttp-core = { group = "com.squareup.okhttp3", name = "okhttp", version.ref = "okhttp" }
 okhttp-logging-interceptor = { group = "com.squareup.okhttp3", name = "logging-interceptor", version.ref = "okhttp" }
+# Test-only — `core:ai`'s provider adapters are tested against a real (loopback)
+# HTTP server rather than a hand-written fake of the Retrofit interface (the
+# lighter pattern `OpenMeteoWeatherProviderTest` uses): each adapter's job is
+# translating to/from a specific vendor's real documented request/response
+# JSON shape, and a fake interface would only exercise the response side,
+# never catch a wrong request field name or header.
+okhttp-mockwebserver = { group = "com.squareup.okhttp3", name = "mockwebserver", version.ref = "okhttp" }
 
 # Testing
 junit4 = { group = "junit", name = "junit", version.ref = "junit4" }
-junit-jupiter = { group = "org.junit.jupiter", name = "junit-jupiter", version.ref = "junit5" }
 mockk = { group = "io.mockk", name = "mockk", version.ref = "mockk" }
 mockk-android = { group = "io.mockk", name = "mockk-android", version.ref = "mockk" }
 turbine = { group = "app.cash.turbine", name = "turbine", version.ref = "turbine" }
@@ -223,6 +249,9 @@ androidx-glance-material3 = { group = "androidx.glance", name = "glance-material
 
 # QR pairing (Phase 8)
 zxing-core = { group = "com.google.zxing", name = "core", version.ref = "zxing" }
+
+# Secure secret storage (Add-to-Wardrobe v2, `core:ai`)
+androidx-security-crypto = { group = "androidx.security", name = "security-crypto", version.ref = "securityCrypto" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

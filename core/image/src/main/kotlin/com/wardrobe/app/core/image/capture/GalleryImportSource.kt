@@ -34,4 +34,19 @@ class GalleryImportSource
             val input = context.contentResolver.openInputStream(uri) ?: throw IOException("Unable to open $uri")
             input.use { stream -> destination.outputStream().use { output -> stream.copyTo(output) } }
         }
+
+        /**
+         * M15 Part 4 — the Photo Picker's granted [Uri] does not reliably
+         * survive process death (it is not a persistable grant, unlike the
+         * legacy document picker), so a profile avatar is copied into this
+         * app's own storage immediately, the same way every garment photo
+         * already is via [copyToTempFile]. Always the same destination file
+         * (single avatar, not one per pick) — a re-pick simply overwrites it.
+         */
+        fun copyAvatarImage(uri: Uri): File {
+            val destination = File(File(context.filesDir, "profile"), "avatar.jpg")
+            destination.parentFile?.mkdirs()
+            copyToTempFile(uri, destination)
+            return destination
+        }
     }

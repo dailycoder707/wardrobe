@@ -4,7 +4,7 @@ import com.wardrobe.app.core.model.common.GarmentId
 import com.wardrobe.app.core.model.common.ImageMetadataId
 import java.time.Instant
 
-enum class ImageType { ORIGINAL, CUTOUT, THUMBNAIL }
+enum class ImageType { ORIGINAL, CUTOUT, WHITE_BACKGROUND, THUMBNAIL }
 
 /** One stored image file for a garment — see ADR-007 for the storage strategy. */
 data class ImageMetadata(

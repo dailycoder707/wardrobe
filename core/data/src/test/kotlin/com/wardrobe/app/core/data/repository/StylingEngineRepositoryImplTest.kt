@@ -19,13 +19,16 @@ import com.wardrobe.app.core.model.common.CategoryId
 import com.wardrobe.app.core.model.common.ColorId
 import com.wardrobe.app.core.model.common.DateRange
 import com.wardrobe.app.core.model.common.GarmentId
+import com.wardrobe.app.core.model.common.OccasionId
 import com.wardrobe.app.core.model.common.OutfitId
 import com.wardrobe.app.core.model.common.WearEventId
 import com.wardrobe.app.core.model.garment.Category
 import com.wardrobe.app.core.model.garment.CategoryLevel
+import com.wardrobe.app.core.model.garment.DressCode
 import com.wardrobe.app.core.model.garment.Garment
 import com.wardrobe.app.core.model.garment.GarmentFilter
 import com.wardrobe.app.core.model.garment.GarmentStatus
+import com.wardrobe.app.core.model.outfit.Occasion
 import com.wardrobe.app.core.model.outfit.Outfit
 import com.wardrobe.app.core.model.outfit.OutfitGarmentSlot
 import com.wardrobe.app.core.model.outfit.OutfitSlot
@@ -54,6 +57,8 @@ import java.time.Clock
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset
+import java.time.format.DateTimeFormatter
+import java.time.format.FormatStyle
 import java.time.temporal.ChronoUnit
 
 private val TODAY = LocalDate.of(2026, 8, 2)
@@ -211,6 +216,52 @@ class StylingEngineRepositoryImplTest {
             assertTrue(engine.lastRunDiagnostics().plannedOutfitUsed)
         }
 
+    /** M20 — [SuggestionContext.date] is no longer always "today" once Calendar
+     * requests a recommendation for an arbitrary planned date; this proves the
+     * planned-outfit explanation names that actual date instead of the
+     * previously-hardcoded "today", which would have been dishonest here. */
+    @Test
+    fun `suggestOutfits names the actual date when the already-planned outfit is not for today`() =
+        runTest {
+            val futureDate = TODAY.plusDays(5)
+            stubGarments(listOf(testGarment(1, 1), testGarment(2, 2)))
+            val plannedOutfit =
+                Outfit(
+                    id = OutfitId(5),
+                    name = "Planned Look",
+                    garments = listOf(OutfitGarmentSlot(GarmentId(1), OutfitSlot.TOP.slotIndex)),
+                    occasionId = null,
+                    source = OutfitSource.USER_CREATED,
+                    isSaved = true,
+                    photoUri = null,
+                    createdAt = Instant.now(FIXED_CLOCK),
+                )
+            every { wearEventRepository.observeEvents(DateRange(futureDate, futureDate)) } returns
+                flowOf(
+                    listOf(
+                        WearEvent(
+                            id = WearEventId(1),
+                            date = futureDate,
+                            garmentId = null,
+                            outfitId = OutfitId(5),
+                            weatherCacheId = null,
+                            occasionId = null,
+                            note = null,
+                            status = WearEventStatus.PLANNED,
+                            createdAt = Instant.now(FIXED_CLOCK),
+                        ),
+                    ),
+                )
+            coEvery { outfitRepository.getOutfit(OutfitId(5)) } returns plannedOutfit
+
+            val engine = repository()
+            val results = engine.suggestOutfits(SuggestionContext(date = futureDate, weather = null, occasionId = null))
+            val expectedDateText = futureDate.format(DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM))
+
+            assertEquals(plannedOutfit, results.first().outfit)
+            assertEquals("You already planned this outfit for $expectedDateText.", results.first().explanation)
+        }
+
     @Test
     fun `suggestOutfits adds a limited-choices note when most garments are packed for an active trip`() =
         runTest {
@@ -269,5 +320,84 @@ class StylingEngineRepositoryImplTest {
             engine.suggestOutfits(SuggestionContext(date = TODAY, weather = null, occasionId = null))
 
             assertEquals(WeatherSource.NONE, engine.lastRunDiagnostics().weatherSource)
+        }
+
+    /** M19 — [SuggestionContext.occasionId] was declared but never read before
+     * this milestone; these two tests prove it now genuinely changes which
+     * garment wins the slot, via the same `plannedOccasionFactor` scoring
+     * `Occasion.impliedDressCode()` already fed from the calendar. */
+    @Test
+    fun `an explicit occasion override affects which garment scores highest`() =
+        runTest {
+            val businessGarment = testGarment(1, 1).copy(dressCodes = setOf(DressCode.BUSINESS))
+            val casualGarment = testGarment(2, 1).copy(dressCodes = setOf(DressCode.CASUAL))
+            val bottomGarment = testGarment(3, 2)
+            stubGarments(listOf(businessGarment, casualGarment, bottomGarment))
+            stubNoPlannedEvents()
+            val workOccasion = Occasion(OccasionId(1), "Work")
+            every { occasionRepository.observeAll() } returns flowOf(listOf(workOccasion))
+
+            val engine = repository()
+            val results =
+                engine.suggestOutfits(SuggestionContext(date = TODAY, weather = null, occasionId = workOccasion.id))
+
+            val topOutfit = results.first().outfit
+            val topPick = topOutfit.garments.first { OutfitSlot.fromIndex(it.layerSlot) == OutfitSlot.TOP }
+            assertEquals(GarmentId(1), topPick.garmentId)
+        }
+
+    @Test
+    fun `an explicit occasion override wins over a conflicting calendar-planned occasion`() =
+        runTest {
+            val businessGarment = testGarment(1, 1).copy(dressCodes = setOf(DressCode.BUSINESS))
+            val casualGarment = testGarment(2, 1).copy(dressCodes = setOf(DressCode.CASUAL))
+            val bottomGarment = testGarment(3, 2)
+            stubGarments(listOf(businessGarment, casualGarment, bottomGarment))
+            val workOccasion = Occasion(OccasionId(1), "Work")
+            val gymOccasion = Occasion(OccasionId(2), "Gym")
+            every { occasionRepository.observeAll() } returns flowOf(listOf(workOccasion, gymOccasion))
+            every { wearEventRepository.observeEvents(DateRange(TODAY, TODAY)) } returns
+                flowOf(
+                    listOf(
+                        WearEvent(
+                            id = WearEventId(1),
+                            date = TODAY,
+                            garmentId = bottomGarment.id,
+                            outfitId = null,
+                            weatherCacheId = null,
+                            occasionId = gymOccasion.id,
+                            note = null,
+                            status = WearEventStatus.PLANNED,
+                            createdAt = Instant.now(FIXED_CLOCK),
+                        ),
+                    ),
+                )
+
+            val engine = repository()
+            // The calendar plans "Gym" for today, but the caller explicitly asks for "Work".
+            val results =
+                engine.suggestOutfits(SuggestionContext(date = TODAY, weather = null, occasionId = workOccasion.id))
+
+            val topOutfit = results.first().outfit
+            val topPick = topOutfit.garments.first { OutfitSlot.fromIndex(it.layerSlot) == OutfitSlot.TOP }
+            assertEquals(GarmentId(1), topPick.garmentId)
+        }
+
+    /** M19 — [count] is the "Show another" plumbing: a caller who explicitly
+     * asks for more candidates than the default genuinely gets more, when
+     * the wardrobe has enough distinct candidates to support it. */
+    @Test
+    fun `suggestOutfits with a higher count returns more distinct outfits when the wardrobe supports it`() =
+        runTest {
+            stubGarments(listOf(testGarment(1, 1), testGarment(2, 1), testGarment(3, 1), testGarment(4, 2)))
+            stubNoPlannedEvents()
+            val engine = repository()
+
+            val context = SuggestionContext(date = TODAY, weather = null, occasionId = null)
+            val defaultResults = engine.suggestOutfits(context)
+            val moreResults = engine.suggestOutfits(context, count = 5)
+
+            assertEquals(3, defaultResults.size)
+            assertEquals(5, moreResults.size)
         }
 }

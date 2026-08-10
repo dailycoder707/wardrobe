@@ -5,10 +5,15 @@ import androidx.lifecycle.viewModelScope
 import com.wardrobe.app.core.domain.repository.GarmentRepository
 import com.wardrobe.app.core.domain.repository.OccasionRepository
 import com.wardrobe.app.core.domain.repository.OutfitRepository
+import com.wardrobe.app.core.domain.repository.StatsRepository
+import com.wardrobe.app.core.domain.repository.StylingEngineRepository
+import com.wardrobe.app.core.domain.repository.StylingEngineRepository.Companion.DEFAULT_SUGGESTION_COUNT
 import com.wardrobe.app.core.domain.repository.WardrobeIntelligenceRepository
 import com.wardrobe.app.core.domain.repository.WearEventRepository
+import com.wardrobe.app.core.domain.repository.WeatherRepository
 import com.wardrobe.app.core.model.common.DateRange
 import com.wardrobe.app.core.model.common.GarmentId
+import com.wardrobe.app.core.model.common.OccasionId
 import com.wardrobe.app.core.model.common.OutfitId
 import com.wardrobe.app.core.model.common.WearEventId
 import com.wardrobe.app.core.model.garment.Garment
@@ -19,18 +24,28 @@ import com.wardrobe.app.core.model.intelligence.CalendarConflict
 import com.wardrobe.app.core.model.outfit.Occasion
 import com.wardrobe.app.core.model.outfit.Outfit
 import com.wardrobe.app.core.model.outfit.OutfitFilter
+import com.wardrobe.app.core.model.stats.CostPerWearEntry
+import com.wardrobe.app.core.model.styling.ScoredOutfit
+import com.wardrobe.app.core.model.styling.SuggestionContext
 import com.wardrobe.app.core.model.wear.WearEvent
 import com.wardrobe.app.core.model.wear.WearEventStatus
+import com.wardrobe.app.core.model.weather.TemperatureUnit
+import com.wardrobe.app.core.model.weather.WeatherSnapshot
 import com.wardrobe.app.feature.calendar.common.toTileUiModel
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import java.time.Clock
 import java.time.Instant
 import java.time.LocalDate
 import java.time.YearMonth
@@ -45,8 +60,15 @@ private const val FUTURE_WINDOW_YEARS = 1L
 private const val RECURRING_WEEK_COUNT = 8
 private const val DAYS_PER_WEEK = 7
 private const val CONFLICT_LOOKAHEAD_DAYS = 14
+private const val RECOMMENDATION_COUNT_STEP = 3
+private const val MAX_RECOMMENDATION_COUNT = 9
+private const val RECOMMENDATION_FAILED_MESSAGE = "Couldn't generate a recommendation. Try again."
+private const val CALENDAR_LOAD_FAILED_MESSAGE = "Couldn't load your calendar. Try again."
 
-private data class ReferenceContext(
+/** Not `private`: [CalendarRecommendationLiveState.referenceState] (a public
+ * class, constructed from [CalendarScreen.kt]) holds one of these — Kotlin
+ * requires the type to be at least as visible as the property exposing it. */
+internal data class ReferenceContext(
     val garments: List<Garment>,
     val outfits: List<Outfit>,
     val occasions: List<Occasion>,
@@ -57,25 +79,43 @@ private data class UiInputs(
     val visibleMonth: YearMonth,
     val selectedDate: LocalDate,
     val toast: String?,
+    val pendingOccasionId: OccasionId?,
+)
+
+private data class ExtraContext(
+    val weather: DateWeatherUiState,
+    val costPerWear: List<CostPerWearEntry>,
 )
 
 @HiltViewModel
 class CalendarViewModel
     @Inject
     constructor(
-        wearEventRepository: WearEventRepository,
+        private val wearEventRepository: WearEventRepository,
         outfitRepository: OutfitRepository,
         garmentRepository: GarmentRepository,
         occasionRepository: OccasionRepository,
         wardrobeIntelligenceRepository: WardrobeIntelligenceRepository,
+        stylingEngineRepository: StylingEngineRepository,
+        private val weatherRepository: WeatherRepository,
+        statsRepository: StatsRepository,
+        private val clock: Clock,
     ) : ViewModel() {
         private val viewModeState = MutableStateFlow(CalendarViewMode.CALENDAR)
-        private val visibleMonthState = MutableStateFlow(YearMonth.now())
-        private val selectedDateState = MutableStateFlow(LocalDate.now())
+        private val visibleMonthState = MutableStateFlow(YearMonth.now(clock))
+        private val selectedDateState = MutableStateFlow(LocalDate.now(clock))
         private val toastMessage = MutableStateFlow<String?>(null)
+        private val pendingOccasionState = MutableStateFlow<OccasionId?>(null)
+        private val selectedDateWeatherState = MutableStateFlow<DateWeatherUiState>(DateWeatherUiState.Unavailable)
+        private val selectedDateWeatherSnapshotState = MutableStateFlow<WeatherSnapshot?>(null)
+        private val referenceState = MutableStateFlow(ReferenceContext(emptyList(), emptyList(), emptyList()))
 
-        private val today: LocalDate = LocalDate.now()
+        private val today: LocalDate = LocalDate.now(clock)
         private val queryRange = DateRange(HISTORY_START_DATE, today.plusYears(FUTURE_WINDOW_YEARS))
+
+        private val mutableRecommendationState =
+            MutableStateFlow<DayRecommendationUiState>(DayRecommendationUiState.Idle)
+        val recommendationState: StateFlow<DayRecommendationUiState> = mutableRecommendationState.asStateFlow()
 
         /** Every write path (logging/rescheduling/clearing/duplicating wear events) lives on
          * [CalendarEventActions] rather than as `CalendarViewModel` methods directly — keeping
@@ -87,6 +127,30 @@ class CalendarViewModel
                 scope = viewModelScope,
                 queryRange = queryRange,
                 today = today,
+                toastMessage = toastMessage,
+                pendingOccasionState = pendingOccasionState,
+            )
+
+        /** M20's "recommend/plan/replace for this date" write paths — same
+         * "own class, not more `CalendarViewModel` methods" reasoning as
+         * [actions] above. Reuses the exact M19 [StylingEngineRepository]
+         * path — no second recommendation engine. */
+        val recommendationActions =
+            CalendarRecommendationActions(
+                dependencies =
+                    CalendarRecommendationDependencies(stylingEngineRepository, outfitRepository, wearEventRepository),
+                liveState =
+                    CalendarRecommendationLiveState(
+                        selectedDateState = selectedDateState,
+                        pendingOccasionState = pendingOccasionState,
+                        weatherSnapshotState = selectedDateWeatherSnapshotState,
+                        referenceState = referenceState,
+                    ),
+                scope = viewModelScope,
+                clock = clock,
+                today = today,
+                queryRange = queryRange,
+                state = mutableRecommendationState,
                 toastMessage = toastMessage,
             )
 
@@ -103,11 +167,17 @@ class CalendarViewModel
                 visibleMonthState,
                 selectedDateState,
                 toastMessage,
-            ) { mode, month, selected, toast ->
-                UiInputs(mode, month, selected, toast)
+                pendingOccasionState,
+            ) { mode, month, selected, toast, pendingOccasion ->
+                UiInputs(mode, month, selected, toast, pendingOccasion)
             }
 
         private val conflictsFlow = wardrobeIntelligenceRepository.observeCalendarConflicts(CONFLICT_LOOKAHEAD_DAYS)
+
+        private val extraContextFlow =
+            combine(selectedDateWeatherState, statsRepository.observeCostPerWear()) { weather, costPerWear ->
+                ExtraContext(weather, costPerWear)
+            }
 
         val uiState: StateFlow<CalendarUiState> =
             combine(
@@ -115,13 +185,35 @@ class CalendarViewModel
                 referenceFlow,
                 uiInputsFlow,
                 conflictsFlow,
-            ) { events, reference, inputs, conflicts ->
-                buildCalendarUiState(events, reference, inputs, today, conflicts)
-            }.stateIn(
-                scope = viewModelScope,
-                started = SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS),
-                initialValue = CalendarUiState(isLoading = true),
-            )
+                extraContextFlow,
+            ) { events, reference, inputs, conflicts, extra ->
+                buildCalendarUiState(events, reference, inputs, today, conflicts, extra)
+            }
+                // M22 fix: this chain previously had no error boundary at all —
+                // a throwing repository flow left the screen stuck loading
+                // forever instead of surfacing an honest, retryable error.
+                .catch { emit(CalendarUiState(isLoading = false, error = CALENDAR_LOAD_FAILED_MESSAGE)) }
+                .stateIn(
+                    scope = viewModelScope,
+                    started = SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS),
+                    initialValue = CalendarUiState(isLoading = true),
+                )
+
+        init {
+            viewModelScope.launch { referenceFlow.collect { referenceState.value = it } }
+            // `collectLatest`, not `collect`: selecting a new date before the
+            // previous date's forecast resolved must cancel that in-flight
+            // fetch, or a slow lookup for a date the user already navigated
+            // away from could land after a faster one and show weather for
+            // the wrong day (M20 bug hunt, Part 18).
+            viewModelScope.launch {
+                selectedDateState.collectLatest { date ->
+                    val snapshot = weatherRepository.getForecastForConfiguredLocation(date)
+                    selectedDateWeatherSnapshotState.value = snapshot
+                    selectedDateWeatherState.value = resolveDateWeather(snapshot, date, today, TemperatureUnit.CELSIUS)
+                }
+            }
+        }
 
         fun onMonthChange(monthDelta: Long) {
             visibleMonthState.update { it.plusMonths(monthDelta) }
@@ -130,6 +222,8 @@ class CalendarViewModel
         fun onSelectDate(date: LocalDate) {
             selectedDateState.value = date
             visibleMonthState.value = YearMonth.from(date)
+            pendingOccasionState.value = null
+            mutableRecommendationState.value = DayRecommendationUiState.Idle
         }
 
         fun onToggleViewMode() {
@@ -140,6 +234,23 @@ class CalendarViewModel
 
         fun onToastShown() {
             toastMessage.value = null
+        }
+
+        /** Part 7 — one occasion per day, stored on that day's own
+         * [WearEvent]s (never a second, parallel "calendar entry" table).
+         * Persists immediately onto every event already logged for
+         * [selectedDateState]'s date; a day with nothing logged yet just
+         * remembers the pick until a wear/plan is actually recorded (see
+         * [CalendarEventActions.logWear]/[CalendarRecommendationActions]'s
+         * own reads of [pendingOccasionState]). */
+        fun onOccasionSelected(occasionId: OccasionId?) {
+            pendingOccasionState.value = occasionId
+            viewModelScope.launch {
+                val date = selectedDateState.value
+                wearEventRepository.observeEvents(DateRange(date, date)).first().forEach { event ->
+                    wearEventRepository.updateWear(event.copy(occasionId = occasionId))
+                }
+            }
         }
     }
 
@@ -153,6 +264,7 @@ class CalendarEventActions(
     private val queryRange: DateRange,
     private val today: LocalDate,
     private val toastMessage: MutableStateFlow<String?>,
+    private val pendingOccasionState: MutableStateFlow<OccasionId?>,
 ) {
     fun onLogGarmentWear(
         garmentId: GarmentId,
@@ -182,7 +294,7 @@ class CalendarEventActions(
                     garmentId = garmentId,
                     outfitId = outfitId,
                     weatherCacheId = null,
-                    occasionId = null,
+                    occasionId = pendingOccasionState.value,
                     note = null,
                     status = status,
                     createdAt = Instant.now(),
@@ -211,7 +323,7 @@ class CalendarEventActions(
                         garmentId = null,
                         outfitId = outfitId,
                         weatherCacheId = null,
-                        occasionId = null,
+                        occasionId = pendingOccasionState.value,
                         note = null,
                         status = if (date.isAfter(today)) WearEventStatus.PLANNED else WearEventStatus.WORN,
                         createdAt = Instant.now(),
@@ -266,9 +378,155 @@ class CalendarEventActions(
         wearEventRepository.observeEvents(queryRange).first().firstOrNull { it.id.value == eventId }
 }
 
+/** Groups [CalendarRecommendationActions]' repository dependencies so its
+ * own constructor stays under detekt's `LongParameterList` threshold — the
+ * same "bag of repositories" pattern `StylingContextDependencies` (core:data)
+ * already established. */
+internal class CalendarRecommendationDependencies(
+    val stylingEngineRepository: StylingEngineRepository,
+    val outfitRepository: OutfitRepository,
+    val wearEventRepository: WearEventRepository,
+)
+
+/** Groups the live, currently-observed values [CalendarRecommendationActions]
+ * needs to read at the moment a recommendation is requested/planned — same
+ * "bag" reasoning as [CalendarRecommendationDependencies]. `internal` (not
+ * `public`) since it holds an [ReferenceContext], itself `internal`. */
+internal class CalendarRecommendationLiveState(
+    val selectedDateState: MutableStateFlow<LocalDate>,
+    val pendingOccasionState: MutableStateFlow<OccasionId?>,
+    val weatherSnapshotState: MutableStateFlow<WeatherSnapshot?>,
+    val referenceState: MutableStateFlow<ReferenceContext>,
+)
+
+/** M20 Part 6/9/10/11 — "recommend for this date", "show another", "plan
+ * this outfit", and "replace a planned outfit with a new recommendation".
+ * Every generation call goes through [CalendarRecommendationDependencies
+ * .stylingEngineRepository] — the exact M19 engine — never a second one. */
+class CalendarRecommendationActions
+    internal constructor(
+        private val dependencies: CalendarRecommendationDependencies,
+        private val liveState: CalendarRecommendationLiveState,
+        private val scope: CoroutineScope,
+        private val clock: Clock,
+        private val today: LocalDate,
+        private val queryRange: DateRange,
+        private val state: MutableStateFlow<DayRecommendationUiState>,
+        private val toastMessage: MutableStateFlow<String?>,
+    ) {
+        private var requestedCount = DEFAULT_SUGGESTION_COUNT
+        private var lastSignature: Set<GarmentId>? = null
+        private var lastScored: ScoredOutfit? = null
+        private var replacingEvent: WearEvent? = null
+
+        fun onRequestRecommendation() {
+            replacingEvent = null
+            requestedCount = DEFAULT_SUGGESTION_COUNT
+            lastSignature = null
+            generate(isFreshRequest = true)
+        }
+
+        fun onReplaceEvent(eventId: Long) {
+            scope.launch {
+                val event =
+                    dependencies.wearEventRepository
+                        .observeEvents(queryRange)
+                        .first()
+                        .firstOrNull { it.id.value == eventId } ?: return@launch
+                replacingEvent = event
+                requestedCount = DEFAULT_SUGGESTION_COUNT
+                lastSignature = null
+                generate(isFreshRequest = true)
+            }
+        }
+
+        fun onShowAnother() {
+            requestedCount = (requestedCount + RECOMMENDATION_COUNT_STEP).coerceAtMost(MAX_RECOMMENDATION_COUNT)
+            generate(isFreshRequest = false)
+        }
+
+        fun onCancel() {
+            replacingEvent = null
+            lastSignature = null
+            lastScored = null
+            state.value = DayRecommendationUiState.Idle
+        }
+
+        fun onPlanRecommendedOutfit() {
+            val scored = lastScored ?: return
+            val date = liveState.selectedDateState.value
+            val eventBeingReplaced = replacingEvent
+            scope.launch {
+                val request =
+                    DayPlanRequest(
+                        scored = scored,
+                        date = date,
+                        occasionId = liveState.pendingOccasionState.value,
+                        replacingEvent = eventBeingReplaced,
+                    )
+                persistDayRecommendation(dependencies, request, today, clock)
+                toastMessage.value = if (eventBeingReplaced != null) "Outfit replaced" else "Planned for $date"
+                replacingEvent = null
+                lastSignature = null
+                lastScored = null
+                state.value = DayRecommendationUiState.Idle
+            }
+        }
+
+        @Suppress("TooGenericExceptionCaught", "SwallowedException")
+        private fun generate(isFreshRequest: Boolean) {
+            val previousState = state.value
+            scope.launch {
+                state.value = DayRecommendationUiState.Loading
+                try {
+                    val date = liveState.selectedDateState.value
+                    val context =
+                        SuggestionContext(
+                            date = date,
+                            weather = liveState.weatherSnapshotState.value,
+                            occasionId = liveState.pendingOccasionState.value,
+                        )
+                    val results = dependencies.stylingEngineRepository.suggestOutfits(context, requestedCount)
+                    val next =
+                        if (isFreshRequest) {
+                            results.firstOrNull()
+                        } else {
+                            results.firstOrNull { it.garmentSignature() != lastSignature }
+                        }
+                    if (next == null) {
+                        toastMessage.value = NO_MORE_ALTERNATIVES_MESSAGE
+                        state.value = previousState
+                        return@launch
+                    }
+                    lastScored = next
+                    lastSignature = next.garmentSignature()
+                    val garmentsById =
+                        liveState.referenceState.value.garments
+                            .associateBy { it.id }
+                    state.value =
+                        DayRecommendationUiState.Loaded(
+                            model = next.toDayRecommendationUiModel(garmentsById),
+                            replacingEventId = replacingEvent?.id?.value,
+                        )
+                } catch (cancellation: CancellationException) {
+                    throw cancellation
+                } catch (throwable: Throwable) {
+                    state.value = DayRecommendationUiState.Error(RECOMMENDATION_FAILED_MESSAGE)
+                }
+            }
+        }
+    }
+
 private fun <T> MutableStateFlow<T>.update(transform: (T) -> T) {
     value = transform(value)
 }
+
+private data class UiMappingContext(
+    val garmentsById: Map<GarmentId, Garment>,
+    val outfitsById: Map<OutfitId, Outfit>,
+    val occasions: List<Occasion>,
+    val costPerWearByGarmentId: Map<GarmentId, CostPerWearEntry>,
+)
 
 private fun buildCalendarUiState(
     events: List<WearEvent>,
@@ -276,32 +534,24 @@ private fun buildCalendarUiState(
     inputs: UiInputs,
     today: LocalDate,
     conflicts: List<CalendarConflict>,
+    extra: ExtraContext,
 ): CalendarUiState {
-    val garmentsById = reference.garments.associateBy { it.id }
-    val outfitsById = reference.outfits.associateBy { it.id }
+    val context =
+        UiMappingContext(
+            garmentsById = reference.garments.associateBy { it.id },
+            outfitsById = reference.outfits.associateBy { it.id },
+            occasions = reference.occasions,
+            costPerWearByGarmentId = extra.costPerWear.associateBy { it.garmentId },
+        )
     val eventsByDate = events.groupBy { it.date }
     val conflictDates = conflicts.map { it.date }.toSet()
 
     val monthDays = buildMonthDays(inputs.visibleMonth, eventsByDate, today, conflictDates)
-    val selectedDayEvents =
-        eventsByDate[inputs.selectedDate]
-            .orEmpty()
-            .map { it.toUiModel(garmentsById, outfitsById, reference.occasions) }
+    val selectedDayRawEvents = eventsByDate[inputs.selectedDate].orEmpty()
+    val selectedDayEvents = selectedDayRawEvents.map { it.toUiModel(context, today) }
     val selectedDayConflictMessages = conflicts.filter { it.date == inputs.selectedDate }.map { it.message }
-
-    val historyByMonth =
-        if (inputs.viewMode == CalendarViewMode.LIST) {
-            events
-                .filter { it.status == WearEventStatus.WORN }
-                .sortedByDescending { it.date }
-                .groupBy { YearMonth.from(it.date) }
-                .map { (month, monthEvents) ->
-                    val entries = monthEvents.map { it.toUiModel(garmentsById, outfitsById, reference.occasions) }
-                    MonthHistoryGroup(month, entries)
-                }
-        } else {
-            emptyList()
-        }
+    val selectedDayOccasionId = inputs.pendingOccasionId ?: selectedDayRawEvents.firstNotNullOfOrNull { it.occasionId }
+    val historyByMonth = buildHistoryByMonth(inputs.viewMode, events, context, today)
 
     return CalendarUiState(
         isLoading = false,
@@ -311,25 +561,44 @@ private fun buildCalendarUiState(
         selectedDate = inputs.selectedDate,
         selectedDayEvents = selectedDayEvents,
         historyByMonth = historyByMonth,
-        savedOutfits =
-            reference.outfits.filter { it.isSaved && !it.isArchived }.map { outfit ->
-                SimpleOutfitOption(
-                    id = outfit.id.value,
-                    name = outfit.name?.takeUnless { it.isBlank() } ?: "Untitled look",
-                    thumbnailPath =
-                        outfit.garments.sortedBy { it.layerSlot }.firstNotNullOfOrNull { slot ->
-                            garmentsById[slot.garmentId]
-                                ?.images
-                                ?.firstOrNull { it.type == ImageType.THUMBNAIL }
-                                ?.filePath
-                        },
-                )
-            },
+        savedOutfits = buildSavedOutfitOptions(reference.outfits, context.garmentsById),
         closetGarments = reference.garments.map { it.toTileUiModel() },
         toastMessage = inputs.toast,
         selectedDayConflictMessages = selectedDayConflictMessages,
+        availableOccasions = reference.occasions,
+        selectedDayOccasionId = selectedDayOccasionId,
+        selectedDateWeather = extra.weather,
     )
 }
+
+private fun buildHistoryByMonth(
+    viewMode: CalendarViewMode,
+    events: List<WearEvent>,
+    context: UiMappingContext,
+    today: LocalDate,
+): List<MonthHistoryGroup> {
+    if (viewMode != CalendarViewMode.LIST) return emptyList()
+    return events
+        .filter { it.status == WearEventStatus.WORN }
+        .sortedByDescending { it.date }
+        .groupBy { YearMonth.from(it.date) }
+        .map { (month, monthEvents) -> MonthHistoryGroup(month, monthEvents.map { it.toUiModel(context, today) }) }
+}
+
+private fun buildSavedOutfitOptions(
+    outfits: List<Outfit>,
+    garmentsById: Map<GarmentId, Garment>,
+): List<SimpleOutfitOption> =
+    outfits.filter { it.isSaved && !it.isArchived }.map { outfit ->
+        SimpleOutfitOption(
+            id = outfit.id.value,
+            name = outfit.name?.takeUnless { it.isBlank() } ?: "Untitled look",
+            thumbnailPath =
+                outfit.garments.sortedBy { it.layerSlot }.firstNotNullOfOrNull { slot ->
+                    garmentsById[slot.garmentId]?.images?.firstOrNull { it.type == ImageType.THUMBNAIL }?.filePath
+                },
+        )
+    }
 
 private fun buildMonthDays(
     month: YearMonth,
@@ -363,15 +632,17 @@ private fun gridStart(
 ): LocalDate = firstOfMonth.minusDays(leadingBlankDays.toLong())
 
 private fun WearEvent.toUiModel(
-    garmentsById: Map<GarmentId, Garment>,
-    outfitsById: Map<OutfitId, Outfit>,
-    occasions: List<Occasion>,
+    context: UiMappingContext,
+    today: LocalDate,
 ): WearEventUiModel {
-    val garment = garmentId?.let { garmentsById[it] }
-    val outfit = outfitId?.let { outfitsById[it] }
+    val garment = garmentId?.let { context.garmentsById[it] }
+    val outfit = outfitId?.let { context.outfitsById[it] }
     val outfitThumbnail =
         outfit?.garments?.sortedBy { it.layerSlot }?.firstNotNullOfOrNull { slot ->
-            garmentsById[slot.garmentId]?.images?.firstOrNull { it.type == ImageType.THUMBNAIL }?.filePath
+            context.garmentsById[slot.garmentId]
+                ?.images
+                ?.firstOrNull { it.type == ImageType.THUMBNAIL }
+                ?.filePath
         }
     return WearEventUiModel(
         id = id.value,
@@ -384,6 +655,7 @@ private fun WearEvent.toUiModel(
         isOutfit = outfitId != null,
         sourceId = outfitId?.value ?: garmentId?.value ?: 0L,
         status = status,
-        occasionName = occasionId?.let { occ -> occasions.firstOrNull { it.id == occ }?.name },
+        occasionName = occasionId?.let { occ -> context.occasions.firstOrNull { it.id == occ }?.name },
+        wornRecently = computeWornRecently(this, context.outfitsById, context.costPerWearByGarmentId, today),
     )
 }

@@ -6,8 +6,10 @@ import com.wardrobe.app.core.domain.repository.BrandRepository
 import com.wardrobe.app.core.domain.repository.CategoryRepository
 import com.wardrobe.app.core.domain.repository.ClosetPreferencesRepository
 import com.wardrobe.app.core.domain.repository.ColorRepository
+import com.wardrobe.app.core.domain.repository.FabricRepository
 import com.wardrobe.app.core.domain.repository.GarmentRepository
 import com.wardrobe.app.core.domain.repository.MaterialRepository
+import com.wardrobe.app.core.domain.repository.OccasionRepository
 import com.wardrobe.app.core.domain.repository.StatsRepository
 import com.wardrobe.app.core.domain.repository.TagRepository
 import com.wardrobe.app.core.model.common.BrandId
@@ -15,6 +17,7 @@ import com.wardrobe.app.core.model.common.GarmentId
 import com.wardrobe.app.core.model.garment.Brand
 import com.wardrobe.app.core.model.garment.Category
 import com.wardrobe.app.core.model.garment.Color
+import com.wardrobe.app.core.model.garment.Fabric
 import com.wardrobe.app.core.model.garment.Garment
 import com.wardrobe.app.core.model.garment.GarmentFilter
 import com.wardrobe.app.core.model.garment.GarmentSort
@@ -23,6 +26,7 @@ import com.wardrobe.app.core.model.garment.GarmentStatus
 import com.wardrobe.app.core.model.garment.Material
 import com.wardrobe.app.core.model.garment.SortDirection
 import com.wardrobe.app.core.model.garment.Tag
+import com.wardrobe.app.core.model.outfit.Occasion
 import com.wardrobe.app.core.model.stats.CostPerWearEntry
 import com.wardrobe.app.feature.closet.common.toTileUiModel
 import com.wardrobe.app.feature.closet.debug.ClosetDiagnostics
@@ -46,7 +50,6 @@ import javax.inject.Inject
 
 private const val SEARCH_DEBOUNCE_MS = 300L
 private const val STOP_TIMEOUT_MS = 5000L
-private const val RECENTLY_WORN_DAYS = 30L
 private const val MIN_COLUMNS = 2
 private const val MAX_COLUMNS = 6
 
@@ -55,7 +58,24 @@ private data class ReferenceData(
     val colors: List<Color>,
     val brands: List<Brand>,
     val materials: List<Material>,
+    val fabrics: List<Fabric>,
     val tags: List<Tag>,
+    val occasions: List<Occasion>,
+)
+
+/** Split purely to stay under `kotlinx.coroutines.flow.combine`'s 5-flow
+ * overload limit — combined back into one [ReferenceData] immediately. */
+private data class ReferenceDataCore(
+    val categories: List<Category>,
+    val colors: List<Color>,
+    val brands: List<Brand>,
+    val materials: List<Material>,
+)
+
+private data class ReferenceDataExtra(
+    val fabrics: List<Fabric>,
+    val tags: List<Tag>,
+    val occasions: List<Occasion>,
 )
 
 private data class GarmentsWithStats(
@@ -63,10 +83,15 @@ private data class GarmentsWithStats(
     val costPerWear: List<CostPerWearEntry>,
 )
 
+private data class WardrobeSummary(
+    val totalCount: Int,
+    val insights: List<ClosetInsight>,
+)
+
 private data class MiscState(
     val selection: ClosetSelectionState,
     val toast: String?,
-    val totalUnfilteredCount: Int,
+    val summary: WardrobeSummary,
     val recentSearches: List<String>,
 )
 
@@ -80,6 +105,7 @@ private data class UiInputs(
 @OptIn(FlowPreview::class, ExperimentalCoroutinesApi::class)
 @HiltViewModel
 class ClosetViewModel
+    @Suppress("LongParameterList")
     @Inject
     constructor(
         private val garmentRepository: GarmentRepository,
@@ -90,7 +116,9 @@ class ClosetViewModel
         colorRepository: ColorRepository,
         brandRepository: BrandRepository,
         materialRepository: MaterialRepository,
+        fabricRepository: FabricRepository,
         tagRepository: TagRepository,
+        occasionRepository: OccasionRepository,
     ) : ViewModel() {
         private val filterState = MutableStateFlow(ClosetFilterState.EMPTY)
         private val searchQueryRaw = MutableStateFlow("")
@@ -100,23 +128,17 @@ class ClosetViewModel
 
         private val searchQueryDebounced = searchQueryRaw.debounce(SEARCH_DEBOUNCE_MS).distinctUntilChanged()
 
+        /** Only search + status are pushed down to SQL now — every facet
+         * (category/color/brand/material/fabric/season/dressCode/occasion/
+         * tag/fit/gender/waterproofLevel/price/wear-history) is evaluated
+         * in-memory via [matchesClosetFilters] in [buildUiState] instead, so
+         * toggling a filter never re-queries the database (M17 architecture
+         * decision, ADR-016) — it only recomputes the already-loaded list. */
         private val sqlFilterFlow =
-            combine(filterState, searchQueryDebounced) { filters, query ->
-                GarmentFilter(
-                    categoryId = filters.category,
-                    brandId = filters.brand,
-                    status = GarmentStatus.ACTIVE,
-                    season = filters.season,
-                    dressCode = filters.dressCode,
-                    searchQuery = query.takeIf { it.isNotBlank() },
-                    isFavorite = true.takeIf { filters.favoriteOnly },
-                    colorId = filters.color,
-                    materialId = filters.material,
-                    tagId = filters.tag,
-                    priceMin = filters.priceMin,
-                    priceMax = filters.priceMax,
-                )
-            }.distinctUntilChanged()
+            searchQueryDebounced
+                .map { query ->
+                    GarmentFilter(status = GarmentStatus.ACTIVE, searchQuery = query.takeIf { it.isNotBlank() })
+                }.distinctUntilChanged()
 
         private val garmentsWithStatsFlow =
             combine(
@@ -126,13 +148,27 @@ class ClosetViewModel
 
         private val referenceDataFlow =
             combine(
-                categoryRepository.observeAll(),
-                colorRepository.observeAll(),
-                brandRepository.observeAll(),
-                materialRepository.observeAll(),
-                tagRepository.observeAll(),
-            ) { categories, colors, brands, materials, tags ->
-                ReferenceData(categories, colors, brands, materials, tags)
+                combine(
+                    categoryRepository.observeAll(),
+                    colorRepository.observeAll(),
+                    brandRepository.observeAll(),
+                    materialRepository.observeAll(),
+                ) { categories, colors, brands, materials -> ReferenceDataCore(categories, colors, brands, materials) },
+                combine(
+                    fabricRepository.observeAll(),
+                    tagRepository.observeAll(),
+                    occasionRepository.observeAll(),
+                ) { fabrics, tags, occasions -> ReferenceDataExtra(fabrics, tags, occasions) },
+            ) { core, extra ->
+                ReferenceData(
+                    categories = core.categories,
+                    colors = core.colors,
+                    brands = core.brands,
+                    materials = core.materials,
+                    fabrics = extra.fabrics,
+                    tags = extra.tags,
+                    occasions = extra.occasions,
+                )
             }
 
         private val uiInputsFlow =
@@ -143,8 +179,14 @@ class ClosetViewModel
                 searchQueryRaw,
             ) { sort, gridColumnCount, filters, rawQuery -> UiInputs(sort, gridColumnCount, filters, rawQuery) }
 
-        private val totalUnfilteredCountFlow =
-            garmentRepository.observeGarments(GarmentFilter(status = GarmentStatus.ACTIVE)).map { it.size }
+        /** Every active garment regardless of search/filters — the source
+         * both of [ClosetUiState.resultCountLabel]'s "of N" total and of
+         * [ClosetInsight]s, both of which must describe the whole wardrobe,
+         * not the current narrowed view. */
+        private val wardrobeSummaryFlow =
+            garmentRepository.observeGarments(GarmentFilter(status = GarmentStatus.ACTIVE)).map { garments ->
+                WardrobeSummary(totalCount = garments.size, insights = computeClosetInsights(garments, LocalDate.now()))
+            }
 
         val uiState: StateFlow<ClosetUiState> =
             combine(
@@ -154,10 +196,10 @@ class ClosetViewModel
                 combine(
                     selection.state,
                     toastMessage,
-                    totalUnfilteredCountFlow,
+                    wardrobeSummaryFlow,
                     closetPreferencesRepository.observeRecentSearches(),
-                ) { selectionState, toast, total, recentSearches ->
-                    MiscState(selectionState, toast, total, recentSearches)
+                ) { selectionState, toast, summary, recentSearches ->
+                    MiscState(selectionState, toast, summary, recentSearches)
                 },
             ) { garmentsWithStats, reference, uiInputs, misc ->
                 buildUiState(garmentsWithStats, reference, uiInputs, misc, closetDiagnostics)
@@ -230,16 +272,10 @@ private fun buildUiState(
     if (misc.selection.pendingDeletionIds.isNotEmpty()) {
         garments = garments.filterNot { it.id.value in misc.selection.pendingDeletionIds }
     }
-    if (inputs.filters.neverWorn) {
-        garments = garments.filter { (statsByGarmentId[it.id]?.totalWearCount ?: 0) == 0 }
-    }
-    if (inputs.filters.recentlyWornOnly) {
-        garments =
-            garments.filter { garment ->
-                val lastWorn = statsByGarmentId[garment.id]?.lastWornDate
-                lastWorn != null && lastWorn.isAfter(today.minusDays(RECENTLY_WORN_DAYS))
-            }
-    }
+    garments =
+        garments.filter { garment ->
+            garment.matchesClosetFilters(inputs.filters, categoriesById, statsByGarmentId[garment.id], today)
+        }
 
     val sorted = sortGarments(garments, statsByGarmentId, brandsById, inputs.sort)
 
@@ -256,16 +292,18 @@ private fun buildUiState(
     return ClosetUiState(
         isLoading = false,
         garments = sorted.map { it.toTileUiModel(categoriesById, brandsById) },
-        totalUnfilteredCount = misc.totalUnfilteredCount,
+        totalUnfilteredCount = misc.summary.totalCount,
         searchQuery = inputs.rawQuery,
         filters = inputs.filters,
         filterOptions =
             ClosetFilterOptions(
-                reference.categories,
-                reference.colors,
-                reference.brands,
-                reference.materials,
-                reference.tags,
+                categories = reference.categories,
+                colors = reference.colors,
+                brands = reference.brands,
+                materials = reference.materials,
+                fabrics = reference.fabrics,
+                tags = reference.tags,
+                occasions = reference.occasions,
             ),
         sort = inputs.sort,
         gridColumnCount = inputs.gridColumnCount,
@@ -273,6 +311,7 @@ private fun buildUiState(
         selectedIds = misc.selection.selectedIds,
         recentSearches = misc.recentSearches,
         toastMessage = misc.toast,
+        insights = misc.summary.insights,
     )
 }
 
@@ -321,6 +360,10 @@ private fun sortGarments(
 
             GarmentSortField.COST_PER_WEAR -> {
                 compareBy(nullsFirst<Double>()) { garment -> statsByGarmentId[garment.id]?.costPerWear }
+            }
+
+            GarmentSortField.FAVORITE_FIRST -> {
+                compareBy { garment -> garment.isFavorite }
             }
         }
     val ordered = garments.sortedWith(comparator)

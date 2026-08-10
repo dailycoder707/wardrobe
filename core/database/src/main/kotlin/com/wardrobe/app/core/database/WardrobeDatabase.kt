@@ -5,10 +5,14 @@ import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.wardrobe.app.core.database.converter.Converters
+import com.wardrobe.app.core.database.dao.AiCallLogDao
+import com.wardrobe.app.core.database.dao.AiJobDao
+import com.wardrobe.app.core.database.dao.AiResultCacheDao
 import com.wardrobe.app.core.database.dao.BodyProfileDao
 import com.wardrobe.app.core.database.dao.BrandDao
 import com.wardrobe.app.core.database.dao.CategoryDao
 import com.wardrobe.app.core.database.dao.ColorDao
+import com.wardrobe.app.core.database.dao.FabricDao
 import com.wardrobe.app.core.database.dao.FeedbackDao
 import com.wardrobe.app.core.database.dao.GarmentDao
 import com.wardrobe.app.core.database.dao.GarmentMaskDao
@@ -30,18 +34,24 @@ import com.wardrobe.app.core.database.dao.TripDao
 import com.wardrobe.app.core.database.dao.WearEventDao
 import com.wardrobe.app.core.database.dao.WeatherCacheDao
 import com.wardrobe.app.core.database.dao.WishlistDao
+import com.wardrobe.app.core.database.entity.AiCallLogEntity
+import com.wardrobe.app.core.database.entity.AiJobEntity
+import com.wardrobe.app.core.database.entity.AiResultCacheEntity
 import com.wardrobe.app.core.database.entity.BodyMeasurementsEntity
 import com.wardrobe.app.core.database.entity.BodyProfileEntity
 import com.wardrobe.app.core.database.entity.BodyReferencePhotoEntity
 import com.wardrobe.app.core.database.entity.BrandEntity
 import com.wardrobe.app.core.database.entity.CategoryEntity
 import com.wardrobe.app.core.database.entity.ColorEntity
+import com.wardrobe.app.core.database.entity.FabricEntity
 import com.wardrobe.app.core.database.entity.FeedbackEntity
 import com.wardrobe.app.core.database.entity.GarmentColorPaletteCrossRef
 import com.wardrobe.app.core.database.entity.GarmentDressCodeCrossRef
 import com.wardrobe.app.core.database.entity.GarmentEntity
+import com.wardrobe.app.core.database.entity.GarmentFabricCrossRef
 import com.wardrobe.app.core.database.entity.GarmentMaskEntity
 import com.wardrobe.app.core.database.entity.GarmentMaterialCrossRef
+import com.wardrobe.app.core.database.entity.GarmentOccasionCrossRef
 import com.wardrobe.app.core.database.entity.GarmentPlacementTemplateEntity
 import com.wardrobe.app.core.database.entity.GarmentSeasonCrossRef
 import com.wardrobe.app.core.database.entity.GarmentTagCrossRef
@@ -79,10 +89,26 @@ import java.util.UUID
 private fun newSyncId(): String = UUID.randomUUID().toString()
 
 /**
- * Version 7 — the Add-to-Wardrobe ingestion fix. `MIGRATION_6_7` adds
- * `garments.notes`, ~37 new [CategoryEntity] subcategory rows under the
- * existing 13 top-level buckets, and `import_queue_items` (the Room-backed,
- * device-local-only Add-to-Wardrobe import queue). `MIGRATION_5_6`
+ * Version 9 — near-automatic Add-to-Wardrobe (AI Wardrobe Assistant Parts
+ * 1-3). `MIGRATION_8_9` adds four nullable `garments` columns
+ * (`secondaryColorId`, `neckline`, `gender`, `waterproofLevel`), a new
+ * `fabrics` reference table (mirrors `materials`; deliberately distinct
+ * from fiber-content `Material` — see `Fabric`'s KDoc), and two new
+ * cross-ref tables (`garment_fabrics`, `garment_occasions` — the latter
+ * reusing the *existing* `occasions` table, no new occasion reference
+ * data). No existing column is altered or removed.
+ *
+ * Version 8 — Add-to-Wardrobe v2 / the unified AI provider architecture
+ * (ADR-012). `MIGRATION_7_8` adds three new, device-local-only tables:
+ * `ai_jobs` (`AiJobManager`'s generalized job ledger, superseding
+ * `import_queue_items`'s per-photo state as the underlying dispatch
+ * tracker), `ai_result_cache` (the multi-stage cache *and* provenance
+ * ledger keyed by `imageSha256:capability:provider:model:promptVersion`),
+ * and `ai_call_log` (cost/metrics, local-only telemetry). `MIGRATION_6_7`
+ * (the Add-to-Wardrobe ingestion fix) adds `garments.notes`, ~37 new
+ * [CategoryEntity] subcategory rows under the existing 13 top-level
+ * buckets, and `import_queue_items` (the Room-backed, device-local-only
+ * Add-to-Wardrobe import queue). `MIGRATION_5_6`
  * (Phase 10) adds five new tables for Personal Virtual Try-On
  * (`body_profiles`, `body_reference_photos`, `body_measurements`,
  * `garment_placement_templates`, `garment_masks`); see
@@ -139,8 +165,14 @@ private fun newSyncId(): String = UUID.randomUUID().toString()
         GarmentPlacementTemplateEntity::class,
         GarmentMaskEntity::class,
         ImportQueueItemEntity::class,
+        AiJobEntity::class,
+        AiResultCacheEntity::class,
+        AiCallLogEntity::class,
+        FabricEntity::class,
+        GarmentFabricCrossRef::class,
+        GarmentOccasionCrossRef::class,
     ],
-    version = 7,
+    version = 9,
     exportSchema = true,
 )
 @TypeConverters(Converters::class)
@@ -156,6 +188,8 @@ abstract class WardrobeDatabase : RoomDatabase() {
     abstract fun tagDao(): TagDao
 
     abstract fun occasionDao(): OccasionDao
+
+    abstract fun fabricDao(): FabricDao
 
     abstract fun garmentDao(): GarmentDao
 
@@ -195,6 +229,12 @@ abstract class WardrobeDatabase : RoomDatabase() {
 
     abstract fun importQueueDao(): ImportQueueDao
 
+    abstract fun aiJobDao(): AiJobDao
+
+    abstract fun aiResultCacheDao(): AiResultCacheDao
+
+    abstract fun aiCallLogDao(): AiCallLogDao
+
     /**
      * Seeds the fixed default [OccasionEntity] rows on first creation only (Phase 1
      * Section 9: Occasion is user-extensible, but ships with sensible defaults).
@@ -215,7 +255,30 @@ abstract class WardrobeDatabase : RoomDatabase() {
                     DEFAULT_OCCASIONS.map { OccasionEntity(name = it, syncId = newSyncId(), updatedAt = now) },
                 )
                 seedDefaultCategories(databaseProvider().categoryDao(), now)
+                seedDefaultMaterialsAndFabrics(now)
             }
+        }
+
+        /**
+         * Materials had no seed data at all before this — a real, pre-existing
+         * gap discovered while wiring the near-automatic Add-to-Wardrobe
+         * feature: a reference-backed suggestion (Constitution rule 4) only
+         * ever binds against an *existing* row by name, never auto-creates
+         * one, so an unseeded `materials` table meant an AI-suggested
+         * "Cotton" could never actually fill the Material field on a fresh
+         * install — permanently blocking that field's contribution to
+         * auto-save eligibility. Fixed alongside adding the analogous
+         * `fabrics` table (weave/construction — deliberately distinct from
+         * fiber-content `Material`, see [com.wardrobe.app.core.model.garment.Fabric]'s
+         * KDoc) so it doesn't ship with the same gap on day one.
+         */
+        private suspend fun seedDefaultMaterialsAndFabrics(now: Long) {
+            databaseProvider().materialDao().insertAll(
+                DEFAULT_MATERIALS.map { MaterialEntity(name = it, syncId = newSyncId(), updatedAt = now) },
+            )
+            databaseProvider().fabricDao().insertAll(
+                DEFAULT_FABRICS.map { FabricEntity(name = it, syncId = newSyncId(), updatedAt = now) },
+            )
         }
 
         /**
@@ -323,6 +386,39 @@ abstract class WardrobeDatabase : RoomDatabase() {
                     "Travel",
                     "Date Night",
                     "Loungewear",
+                )
+
+            /** Fiber content — deliberately distinct from [DEFAULT_FABRICS]
+             * (weave/construction), see [com.wardrobe.app.core.model.garment.Fabric]'s KDoc. */
+            val DEFAULT_MATERIALS =
+                listOf(
+                    "Cotton",
+                    "Polyester",
+                    "Wool",
+                    "Linen",
+                    "Silk",
+                    "Nylon",
+                    "Spandex",
+                    "Rayon",
+                    "Cashmere",
+                    "Leather",
+                    "Suede",
+                    "Acrylic",
+                )
+
+            val DEFAULT_FABRICS =
+                listOf(
+                    "Denim",
+                    "Jersey",
+                    "Twill",
+                    "Flannel",
+                    "Fleece",
+                    "Satin",
+                    "Chiffon",
+                    "Canvas",
+                    "Corduroy",
+                    "Oxford",
+                    "Poplin",
                 )
         }
     }

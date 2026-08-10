@@ -18,6 +18,18 @@ data class InsightsChartsUiState(
     val heatmapCells: List<HeatmapCellUiModel> = emptyList(),
     val heatmapRangeStart: LocalDate = LocalDate.now(),
     val heatmapRangeEnd: LocalDate = LocalDate.now(),
+    /** M21 — composition-based (own it or not), not wear-based like the
+     * distributions above; empty when nothing is tagged, never a fabricated
+     * placeholder bar. */
+    val materialDistribution: List<BarChartEntry> = emptyList(),
+    val fabricDistribution: List<BarChartEntry> = emptyList(),
+    /** M21 — includes real occasions with zero garments (the coverage gap
+     * itself), same reasoning as `ClosetGap`'s season/dress-code coverage. */
+    val occasionCoverage: List<BarChartEntry> = emptyList(),
+    /** M21 Part 6 — honest missing-metadata disclosure: how many active
+     * garments have no occasion tagged at all, rather than silently letting
+     * [occasionCoverage] imply full coverage. */
+    val garmentsWithoutOccasionCount: Int = 0,
 )
 
 /** Every tap-to-navigate insight list this screen shows, grouped for the same

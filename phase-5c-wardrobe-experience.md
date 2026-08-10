@@ -304,15 +304,21 @@ against. Discovered via the actual failure, not assumed.
   work; pinch-to-zoom, double-tap-to-2×, swipe-down-to-dismiss, and the
   before/after compare slider (`component-library.md`) are not implemented.
 - **Edit Garment** covers the most commonly-edited fields, not literally every
-  Phase 3 attribute (purchase date, fit, length, sleeve length, warmth/
-  breathability ratings, and full palette/material-composition editing have no
-  UI yet).
-- **Add Garment / capture flow is out of scope.** It wasn't one of the six
-  named screens, and building it fully would mean camera-permission UI, the
-  crop overlay, and the background-removal review flow atop Phase 5b's
-  pipeline — a distinct scope. "Continue Editing" on Home instead surfaces
-  garments with `isReviewed == false`, reusing data that already exists rather
-  than inventing new capture UI to make that section non-empty.
+  Phase 3 attribute (fit, length, sleeve length, warmth/breathability ratings,
+  and full palette/material-composition editing have no UI yet — purchase
+  date and general notes were added by the Add-to-Wardrobe ingestion fix,
+  see below).
+- ~~**Add Garment / capture flow is out of scope.**~~ **Resolved** by the
+  Add-to-Wardrobe ingestion fix (dated entry, `TECHNICAL_DEBT.md` item 17) —
+  this was a release-blocking gap discovered on real-device testing, not a
+  permanent scope decision: the capture pipeline this phase built
+  (`GarmentImagePipeline`, `BackgroundRemover`, `ImageRepository`,
+  `GarmentRepository.saveGarment`) had no screen calling it until then. A
+  permanent FAB on Home/Closet, a new `feature:capture` module, and a
+  Room-backed resumable import queue now provide it. "Continue Editing" on
+  Home still surfaces `isReviewed == false` garments — now also reachable via
+  the new "Save as Draft" path in the capture flow, not just as a fallback
+  for an empty section.
 - **No keyboard-shortcut framework.** The search field's IME "search" action
   submits and records history; there is no broader keyboard-navigation/shortcut
   layer beyond what Compose's default focus order already provides.

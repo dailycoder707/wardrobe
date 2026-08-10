@@ -1,28 +1,32 @@
 package com.wardrobe.app.core.data.di
 
+import com.wardrobe.app.core.data.ai.AiProviderSettingsRepositoryImpl
+import com.wardrobe.app.core.data.ai.StylingEngineRouter
 import com.wardrobe.app.core.data.repository.BackupRepositoryImpl
 import com.wardrobe.app.core.data.repository.BodyProfileRepositoryImpl
 import com.wardrobe.app.core.data.repository.BrandRepositoryImpl
 import com.wardrobe.app.core.data.repository.CategoryRepositoryImpl
 import com.wardrobe.app.core.data.repository.ClosetPreferencesRepositoryImpl
 import com.wardrobe.app.core.data.repository.ColorRepositoryImpl
+import com.wardrobe.app.core.data.repository.FabricRepositoryImpl
 import com.wardrobe.app.core.data.repository.GarmentMaskRepositoryImpl
 import com.wardrobe.app.core.data.repository.GarmentRepositoryImpl
 import com.wardrobe.app.core.data.repository.ImageRepositoryImpl
 import com.wardrobe.app.core.data.repository.ImportQueueRepositoryImpl
 import com.wardrobe.app.core.data.repository.MaterialRepositoryImpl
 import com.wardrobe.app.core.data.repository.OccasionRepositoryImpl
+import com.wardrobe.app.core.data.repository.OnboardingRepositoryImpl
 import com.wardrobe.app.core.data.repository.OutfitRepositoryImpl
 import com.wardrobe.app.core.data.repository.PersonalizationRepositoryImpl
 import com.wardrobe.app.core.data.repository.StatsRepositoryImpl
 import com.wardrobe.app.core.data.repository.StyleProfileRepositoryImpl
 import com.wardrobe.app.core.data.repository.StyleRuleRepositoryImpl
-import com.wardrobe.app.core.data.repository.StylingEngineRepositoryImpl
 import com.wardrobe.app.core.data.repository.StylistPreferencesRepositoryImpl
 import com.wardrobe.app.core.data.repository.SyncPreferencesRepositoryImpl
 import com.wardrobe.app.core.data.repository.TagRepositoryImpl
 import com.wardrobe.app.core.data.repository.TripRepositoryImpl
 import com.wardrobe.app.core.data.repository.TryOnPlacementRepositoryImpl
+import com.wardrobe.app.core.data.repository.VirtualTryOnRenderRepositoryImpl
 import com.wardrobe.app.core.data.repository.WardrobeIntelligenceRepositoryImpl
 import com.wardrobe.app.core.data.repository.WearEventRepositoryImpl
 import com.wardrobe.app.core.data.repository.WeatherPreferencesRepositoryImpl
@@ -32,6 +36,7 @@ import com.wardrobe.app.core.data.repository.WishlistRepositoryImpl
 import com.wardrobe.app.core.data.sync.DevicePairingRepositoryImpl
 import com.wardrobe.app.core.data.sync.SyncRepositoryImpl
 import com.wardrobe.app.core.data.sync.SyncSchedulerImpl
+import com.wardrobe.app.core.domain.repository.AiProviderSettingsRepository
 import com.wardrobe.app.core.domain.repository.BackupRepository
 import com.wardrobe.app.core.domain.repository.BodyProfileRepository
 import com.wardrobe.app.core.domain.repository.BrandRepository
@@ -39,12 +44,14 @@ import com.wardrobe.app.core.domain.repository.CategoryRepository
 import com.wardrobe.app.core.domain.repository.ClosetPreferencesRepository
 import com.wardrobe.app.core.domain.repository.ColorRepository
 import com.wardrobe.app.core.domain.repository.DevicePairingRepository
+import com.wardrobe.app.core.domain.repository.FabricRepository
 import com.wardrobe.app.core.domain.repository.GarmentMaskRepository
 import com.wardrobe.app.core.domain.repository.GarmentRepository
 import com.wardrobe.app.core.domain.repository.ImageRepository
 import com.wardrobe.app.core.domain.repository.ImportQueueRepository
 import com.wardrobe.app.core.domain.repository.MaterialRepository
 import com.wardrobe.app.core.domain.repository.OccasionRepository
+import com.wardrobe.app.core.domain.repository.OnboardingRepository
 import com.wardrobe.app.core.domain.repository.OutfitRepository
 import com.wardrobe.app.core.domain.repository.PersonalizationRepository
 import com.wardrobe.app.core.domain.repository.StatsRepository
@@ -58,6 +65,7 @@ import com.wardrobe.app.core.domain.repository.SyncScheduler
 import com.wardrobe.app.core.domain.repository.TagRepository
 import com.wardrobe.app.core.domain.repository.TripRepository
 import com.wardrobe.app.core.domain.repository.TryOnPlacementRepository
+import com.wardrobe.app.core.domain.repository.VirtualTryOnRenderRepository
 import com.wardrobe.app.core.domain.repository.WardrobeIntelligenceRepository
 import com.wardrobe.app.core.domain.repository.WearEventRepository
 import com.wardrobe.app.core.domain.repository.WeatherPreferencesRepository
@@ -91,6 +99,10 @@ abstract class RepositoryModule {
     @Binds
     @Singleton
     abstract fun bindMaterialRepository(impl: MaterialRepositoryImpl): MaterialRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindFabricRepository(impl: FabricRepositoryImpl): FabricRepository
 
     @Binds
     @Singleton
@@ -130,6 +142,10 @@ abstract class RepositoryModule {
 
     @Binds
     @Singleton
+    abstract fun bindOnboardingRepository(impl: OnboardingRepositoryImpl): OnboardingRepository
+
+    @Binds
+    @Singleton
     abstract fun bindTripRepository(impl: TripRepositoryImpl): TripRepository
 
     @Binds
@@ -158,7 +174,7 @@ abstract class RepositoryModule {
 
     @Binds
     @Singleton
-    abstract fun bindStylingEngineRepository(impl: StylingEngineRepositoryImpl): StylingEngineRepository
+    abstract fun bindStylingEngineRepository(impl: StylingEngineRouter): StylingEngineRepository
 
     @Binds
     @Singleton
@@ -204,9 +220,17 @@ abstract class RepositoryModule {
 
     @Binds
     @Singleton
+    abstract fun bindVirtualTryOnRenderRepository(impl: VirtualTryOnRenderRepositoryImpl): VirtualTryOnRenderRepository
+
+    @Binds
+    @Singleton
     abstract fun bindGarmentMaskRepository(impl: GarmentMaskRepositoryImpl): GarmentMaskRepository
 
     @Binds
     @Singleton
     abstract fun bindImportQueueRepository(impl: ImportQueueRepositoryImpl): ImportQueueRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindAiProviderSettingsRepository(impl: AiProviderSettingsRepositoryImpl): AiProviderSettingsRepository
 }

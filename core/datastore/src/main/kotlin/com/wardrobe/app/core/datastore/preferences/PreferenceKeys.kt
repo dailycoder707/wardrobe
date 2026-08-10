@@ -1,10 +1,12 @@
 package com.wardrobe.app.core.datastore.preferences
 
+import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.doublePreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
+import com.wardrobe.app.core.model.ai.AiCapability
 
 /**
  * Keys for the single `Preferences` file this app uses. Kept in one object rather
@@ -83,4 +85,38 @@ internal object PreferenceKeys {
     val SYNC_AUTO_ENABLED = booleanPreferencesKey("sync_auto_enabled")
     val SYNC_WIFI_ONLY = booleanPreferencesKey("sync_wifi_only")
     val SYNC_CHARGING_ONLY = booleanPreferencesKey("sync_charging_only")
+
+    // Onboarding (M16) — only ever explicitly written `true` on completion or
+    // skip; absence means "not explicitly completed," which
+    // `OnboardingRepositoryImpl` combines with real upgrade signals (an
+    // existing display name, an existing garment) rather than trusting this
+    // one flag alone. See docs/adr/ADR-015-m16-onboarding.md.
+    val ONBOARDING_COMPLETED = booleanPreferencesKey("onboarding_completed")
+
+    // AI Provider preferences (Add-to-Wardrobe v2, ADR-012) — one key set per
+    // AiCapability rather than 5 capabilities x 7 fields of hand-declared
+    // constants; a function still guarantees one canonical, type-safe key
+    // per (capability, field) pair, the same collision-avoidance this
+    // object's own doc comment asks for. The API key itself is never a
+    // DataStore key at all — see `core:ai`'s `EncryptedApiKeyStore`.
+    fun aiProviderMode(capability: AiCapability): Preferences.Key<String> =
+        stringPreferencesKey("ai_${capability.name}_mode")
+
+    fun aiProviderVendor(capability: AiCapability): Preferences.Key<String> =
+        stringPreferencesKey("ai_${capability.name}_vendor")
+
+    fun aiProviderBaseUrl(capability: AiCapability): Preferences.Key<String> =
+        stringPreferencesKey("ai_${capability.name}_base_url")
+
+    fun aiProviderModel(capability: AiCapability): Preferences.Key<String> =
+        stringPreferencesKey("ai_${capability.name}_model")
+
+    fun aiProviderCostRate(capability: AiCapability): Preferences.Key<Double> =
+        doublePreferencesKey("ai_${capability.name}_cost_rate")
+
+    fun aiProviderConsentGrantedAt(capability: AiCapability): Preferences.Key<Long> =
+        longPreferencesKey("ai_${capability.name}_consent_granted_at")
+
+    fun aiProviderConsentHost(capability: AiCapability): Preferences.Key<String> =
+        stringPreferencesKey("ai_${capability.name}_consent_host")
 }

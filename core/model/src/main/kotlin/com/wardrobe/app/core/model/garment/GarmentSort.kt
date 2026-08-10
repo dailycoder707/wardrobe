@@ -9,6 +9,7 @@ enum class GarmentSortField {
     PRICE,
     WEAR_COUNT,
     COST_PER_WEAR,
+    FAVORITE_FIRST,
 }
 
 enum class SortDirection { ASCENDING, DESCENDING }

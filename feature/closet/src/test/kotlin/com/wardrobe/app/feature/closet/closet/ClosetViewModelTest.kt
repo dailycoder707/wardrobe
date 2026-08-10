@@ -5,10 +5,12 @@ import com.wardrobe.app.core.model.common.CategoryId
 import com.wardrobe.app.core.model.common.GarmentId
 import com.wardrobe.app.core.model.common.ImageMetadataId
 import com.wardrobe.app.core.model.garment.CategoryLevel
+import com.wardrobe.app.core.model.garment.DressCode
 import com.wardrobe.app.core.model.garment.Garment
 import com.wardrobe.app.core.model.garment.GarmentSort
 import com.wardrobe.app.core.model.garment.GarmentSortField
 import com.wardrobe.app.core.model.garment.GarmentStatus
+import com.wardrobe.app.core.model.garment.Season
 import com.wardrobe.app.core.model.garment.SortDirection
 import com.wardrobe.app.core.model.stats.CostPerWearEntry
 import com.wardrobe.app.feature.closet.debug.ClosetDiagnostics
@@ -16,8 +18,10 @@ import com.wardrobe.app.feature.closet.fakes.FakeBrandRepository
 import com.wardrobe.app.feature.closet.fakes.FakeCategoryRepository
 import com.wardrobe.app.feature.closet.fakes.FakeClosetPreferencesRepository
 import com.wardrobe.app.feature.closet.fakes.FakeColorRepository
+import com.wardrobe.app.feature.closet.fakes.FakeFabricRepository
 import com.wardrobe.app.feature.closet.fakes.FakeGarmentRepository
 import com.wardrobe.app.feature.closet.fakes.FakeMaterialRepository
+import com.wardrobe.app.feature.closet.fakes.FakeOccasionRepository
 import com.wardrobe.app.feature.closet.fakes.FakeStatsRepository
 import com.wardrobe.app.feature.closet.fakes.FakeTagRepository
 import kotlinx.coroutines.Dispatchers
@@ -48,6 +52,9 @@ class ClosetViewModelTest {
         createdAt: Instant,
         isFavorite: Boolean = false,
         price: Double? = null,
+        categoryId: CategoryId = this.categoryId,
+        dressCodes: Set<DressCode> = emptySet(),
+        seasons: Set<Season> = emptySet(),
     ) = Garment(
         id = GarmentId(id),
         name = name,
@@ -56,8 +63,8 @@ class ClosetViewModelTest {
         palette = emptyList(),
         materials = emptyList(),
         tagIds = emptyList(),
-        seasons = emptySet(),
-        dressCodes = emptySet(),
+        seasons = seasons,
+        dressCodes = dressCodes,
         pattern = null,
         fit = null,
         length = null,
@@ -111,7 +118,9 @@ class ClosetViewModelTest {
                 colorRepository = FakeColorRepository(),
                 brandRepository = FakeBrandRepository(),
                 materialRepository = FakeMaterialRepository(),
+                fabricRepository = FakeFabricRepository(),
                 tagRepository = FakeTagRepository(),
+                occasionRepository = FakeOccasionRepository(),
             )
     }
 
@@ -294,6 +303,97 @@ class ClosetViewModelTest {
                 viewModel.onClearFilters()
                 val state = awaitMatching { it.filters.activeCount == 0 && it.garments.size == 3 }
                 assertEquals(3, state.garments.size)
+            }
+        }
+
+    @Test
+    fun `multi-select dress code filter ORs within the facet`() =
+        runTest {
+            garmentRepository.setGarments(
+                listOf(
+                    garment(
+                        1,
+                        "Blue Shirt",
+                        Instant.parse("2026-01-01T00:00:00Z"),
+                        dressCodes = setOf(DressCode.CASUAL),
+                    ),
+                    garment(
+                        2,
+                        "Red Dress",
+                        Instant.parse("2026-02-01T00:00:00Z"),
+                        dressCodes = setOf(DressCode.FORMAL),
+                    ),
+                    garment(
+                        3,
+                        "Green Coat",
+                        Instant.parse("2026-03-01T00:00:00Z"),
+                        dressCodes = setOf(DressCode.CASUAL),
+                    ),
+                ),
+            )
+            viewModel.uiState.test {
+                awaitStateWithGarments()
+                viewModel.onFiltersChange(ClosetFilterState.EMPTY.copy(dressCodes = setOf(DressCode.CASUAL)))
+                val state = awaitMatching { it.filters.dressCodes == setOf(DressCode.CASUAL) }
+                assertEquals(setOf("Blue Shirt", "Green Coat"), state.garments.map { it.title }.toSet())
+            }
+        }
+
+    @Test
+    fun `filters across different facets are ANDed together`() =
+        runTest {
+            garmentRepository.setGarments(
+                listOf(
+                    garment(
+                        1,
+                        "Blue Shirt",
+                        Instant.parse("2026-01-01T00:00:00Z"),
+                        dressCodes = setOf(DressCode.CASUAL),
+                    ),
+                    garment(
+                        2,
+                        "Red Dress",
+                        Instant.parse("2026-02-01T00:00:00Z"),
+                        isFavorite = true,
+                        dressCodes = setOf(DressCode.FORMAL),
+                    ),
+                    garment(
+                        3,
+                        "Green Coat",
+                        Instant.parse("2026-03-01T00:00:00Z"),
+                        dressCodes = setOf(DressCode.CASUAL),
+                    ),
+                ),
+            )
+            viewModel.uiState.test {
+                awaitStateWithGarments()
+                // CASUAL matches Blue Shirt + Green Coat; favoriteOnly matches only
+                // Red Dress (FORMAL, not CASUAL) — the AND of both must be empty.
+                viewModel.onFiltersChange(
+                    ClosetFilterState.EMPTY.copy(dressCodes = setOf(DressCode.CASUAL), favoriteOnly = true),
+                )
+                val state = awaitMatching { it.filters.favoriteOnly && it.filters.dressCodes.isNotEmpty() }
+                assertEquals(emptyList<String>(), state.garments.map { it.title })
+            }
+        }
+
+    @Test
+    fun `favorite first sort places favorited garments first`() =
+        runTest {
+            viewModel.uiState.test {
+                awaitStateWithGarments()
+                viewModel.onSortChange(GarmentSort(GarmentSortField.FAVORITE_FIRST, SortDirection.DESCENDING))
+                val state = awaitMatching { it.sort.field == GarmentSortField.FAVORITE_FIRST }
+                assertEquals("Red Dress", state.garments.first().title)
+            }
+        }
+
+    @Test
+    fun `insights surface real derived counts, never a fabricated one`() =
+        runTest {
+            viewModel.uiState.test {
+                val state = awaitMatching { !it.isLoading && it.insights.isNotEmpty() }
+                assertEquals(true, state.insights.any { it.label == "1 favorite" })
             }
         }
 

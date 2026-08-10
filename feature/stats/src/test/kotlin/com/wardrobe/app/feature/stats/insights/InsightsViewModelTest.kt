@@ -3,20 +3,32 @@ package com.wardrobe.app.feature.stats.insights
 import app.cash.turbine.test
 import com.wardrobe.app.core.model.common.BrandId
 import com.wardrobe.app.core.model.common.CategoryId
+import com.wardrobe.app.core.model.common.FabricId
 import com.wardrobe.app.core.model.common.GarmentId
+import com.wardrobe.app.core.model.common.MaterialId
+import com.wardrobe.app.core.model.common.OccasionId
 import com.wardrobe.app.core.model.common.OutfitId
 import com.wardrobe.app.core.model.garment.Brand
 import com.wardrobe.app.core.model.garment.Category
 import com.wardrobe.app.core.model.garment.CategoryLevel
+import com.wardrobe.app.core.model.garment.Fabric
 import com.wardrobe.app.core.model.garment.Garment
 import com.wardrobe.app.core.model.garment.GarmentStatus
+import com.wardrobe.app.core.model.garment.Material
+import com.wardrobe.app.core.model.outfit.Occasion
 import com.wardrobe.app.core.model.stats.CostPerWearEntry
+import com.wardrobe.app.core.model.stats.FabricDistributionEntry
+import com.wardrobe.app.core.model.stats.MaterialDistributionEntry
+import com.wardrobe.app.core.model.stats.OccasionCoverageEntry
 import com.wardrobe.app.core.model.stats.RepeatedOutfit
 import com.wardrobe.app.core.model.stats.StatsWindow
 import com.wardrobe.app.feature.stats.fakes.FakeBrandRepository
 import com.wardrobe.app.feature.stats.fakes.FakeCategoryRepository
 import com.wardrobe.app.feature.stats.fakes.FakeColorRepository
+import com.wardrobe.app.feature.stats.fakes.FakeFabricRepository
 import com.wardrobe.app.feature.stats.fakes.FakeGarmentRepository
+import com.wardrobe.app.feature.stats.fakes.FakeMaterialRepository
+import com.wardrobe.app.feature.stats.fakes.FakeOccasionRepository
 import com.wardrobe.app.feature.stats.fakes.FakeOutfitRepository
 import com.wardrobe.app.feature.stats.fakes.FakeStatsRepository
 import com.wardrobe.app.feature.stats.fakes.FakeWearEventRepository
@@ -41,6 +53,11 @@ class InsightsViewModelTest {
     private val fixedClock: Clock = Clock.fixed(Instant.parse("2026-06-15T00:00:00Z"), ZoneOffset.UTC)
     private lateinit var statsRepository: FakeStatsRepository
     private lateinit var viewModel: InsightsViewModel
+    private val cottonId = MaterialId(1)
+    private val woolId = MaterialId(2)
+    private val denimId = FabricId(1)
+    private val workId = OccasionId(1)
+    private val weddingId = OccasionId(2)
 
     private fun garment(
         id: Long,
@@ -89,6 +106,14 @@ class InsightsViewModelTest {
                 brandRepository = FakeBrandRepository(listOf(Brand(BrandId(1), "Acme", null))),
                 colorRepository = FakeColorRepository(),
                 wearEventRepository = FakeWearEventRepository(),
+                taxonomyRepositories =
+                    TaxonomyDistributionRepositories(
+                        materialRepository =
+                            FakeMaterialRepository(listOf(Material(cottonId, "Cotton"), Material(woolId, "Wool"))),
+                        fabricRepository = FakeFabricRepository(listOf(Fabric(denimId, "Denim"))),
+                        occasionRepository =
+                            FakeOccasionRepository(listOf(Occasion(workId, "Work"), Occasion(weddingId, "Wedding"))),
+                    ),
                 clock = fixedClock,
             )
     }
@@ -172,6 +197,70 @@ class InsightsViewModelTest {
                         .single()
                         .isOutfit,
                 )
+            }
+        }
+
+    /** M21 bug-fix regression: [InsightsViewModel]'s `listsFlow` used to
+     * hardcode `StatsWindow.ALL_TIME` for `observeDormantItems` regardless
+     * of the selected window — "Waiting to Be Worn" silently never respected
+     * the period selector. */
+    @Test
+    fun `changing the window re-requests dormant items for the new window`() =
+        runTest {
+            viewModel.uiState.test {
+                awaitMatching { !it.isLoading }
+                viewModel.onWindowChange(StatsWindow.ALL_TIME)
+                awaitMatching { it.window == StatsWindow.ALL_TIME }
+                assertEquals(StatsWindow.ALL_TIME, statsRepository.lastDormantItemsWindow)
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
+    @Test
+    fun `material distribution resolves material names sorted by garment count`() =
+        runTest {
+            statsRepository.materialDistribution.value =
+                listOf(
+                    MaterialDistributionEntry(woolId, garmentCount = 1),
+                    MaterialDistributionEntry(cottonId, garmentCount = 5),
+                )
+
+            viewModel.uiState.test {
+                val state = awaitMatching { it.charts.materialDistribution.isNotEmpty() }
+                assertEquals(listOf("Cotton", "Wool"), state.charts.materialDistribution.map { it.label })
+                assertEquals(listOf(5, 1), state.charts.materialDistribution.map { it.value })
+            }
+        }
+
+    @Test
+    fun `fabric distribution resolves fabric names from real reference data`() =
+        runTest {
+            statsRepository.fabricDistribution.value = listOf(FabricDistributionEntry(denimId, garmentCount = 3))
+
+            viewModel.uiState.test {
+                val state = awaitMatching { it.charts.fabricDistribution.isNotEmpty() }
+                val entry = state.charts.fabricDistribution.single()
+                assertEquals("Denim", entry.label)
+                assertEquals(3, entry.value)
+            }
+        }
+
+    @Test
+    fun `occasion coverage includes a real zero-count occasion, never omitting the gap`() =
+        runTest {
+            statsRepository.occasionCoverage.value =
+                listOf(
+                    OccasionCoverageEntry(workId, garmentCount = 3),
+                    OccasionCoverageEntry(weddingId, garmentCount = 0),
+                )
+            statsRepository.garmentCountWithoutOccasion.value = 4
+
+            viewModel.uiState.test {
+                val state = awaitMatching { it.charts.occasionCoverage.isNotEmpty() }
+                val byLabel = state.charts.occasionCoverage.associate { it.label to it.value }
+                assertEquals(3, byLabel["Work"])
+                assertEquals(0, byLabel["Wedding"])
+                assertEquals(4, state.charts.garmentsWithoutOccasionCount)
             }
         }
 

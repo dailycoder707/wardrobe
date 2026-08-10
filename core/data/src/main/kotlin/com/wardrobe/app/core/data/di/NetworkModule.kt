@@ -1,11 +1,14 @@
 package com.wardrobe.app.core.data.di
 
+import android.content.Context
+import android.content.pm.ApplicationInfo
 import com.wardrobe.app.core.network.weather.OpenMeteoService
 import com.wardrobe.app.core.network.weather.OpenMeteoWeatherProvider
 import com.wardrobe.app.core.network.weather.WeatherProvider
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
+import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import kotlinx.serialization.json.Json
 import okhttp3.MediaType.Companion.toMediaType
@@ -31,11 +34,19 @@ object NetworkModule {
 
     @Provides
     @Singleton
-    fun provideOkHttpClient(): OkHttpClient =
+    fun provideOkHttpClient(
+        @ApplicationContext context: Context,
+    ): OkHttpClient =
         OkHttpClient
             .Builder()
-            .addInterceptor(HttpLoggingInterceptor().apply { level = HttpLoggingInterceptor.Level.BASIC })
-            .build()
+            .apply {
+                // M22 fix — release builds have no reason to log request
+                // URLs/response codes at all (production hardening); see
+                // `AiNetworkModule`'s identical fix for the fuller rationale.
+                if (isDebugBuild(context)) {
+                    addInterceptor(HttpLoggingInterceptor().apply { level = HttpLoggingInterceptor.Level.BASIC })
+                }
+            }.build()
 
     @Provides
     @Singleton
@@ -58,3 +69,6 @@ object NetworkModule {
     @Singleton
     fun provideWeatherProvider(service: OpenMeteoService): WeatherProvider = OpenMeteoWeatherProvider(service)
 }
+
+private fun isDebugBuild(context: Context): Boolean =
+    context.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0

@@ -54,12 +54,27 @@ fun ScoredOutfit.toUiModel(
     return RecommendedOutfitUiModel(
         outfit = outfit,
         explanation = explanation,
+        reasonBullets = explanation.toReasonBullets(),
         score = score,
         items = items,
         accessoryItems = accessoryUiItems,
         jewelryItems = jewelryUiItems,
+        provenance = provenance,
+        aiConfidence = aiConfidence,
     )
 }
+
+/** Splits the engine's own joined-sentence [explanation]
+ * (`RecommendationExplainer.buildExplanation`, `. `-separated) into
+ * individual bullet strings for the "Why this?" list — the exact same real
+ * reasons, just itemized instead of read as one paragraph. Never adds or
+ * infers a reason the engine didn't already produce. */
+internal fun String.toReasonBullets(): List<String> =
+    trim()
+        .trimEnd('.')
+        .split(". ")
+        .map { it.trim() }
+        .filter { it.isNotEmpty() }
 
 fun OutfitSlot.naturalLabel(): String =
     when (this) {

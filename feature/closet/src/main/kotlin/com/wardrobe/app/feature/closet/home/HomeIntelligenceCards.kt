@@ -59,12 +59,16 @@ private fun ScoreColumn(
     }
 }
 
+/** [count] is `null` while [HomeAssistantUiState.itemsNeedingAttentionCount]
+ * hasn't resolved yet — absent then, same as a real `0` (M22 fix: these two
+ * cases previously collapsed to the same non-nullable `0` and were
+ * indistinguishable). */
 @Composable
 internal fun AttentionItemsCard(
-    count: Int,
+    count: Int?,
     onClick: () -> Unit,
 ) {
-    if (count <= 0) return
+    if (count == null || count <= 0) return
     ElevatedCard(onClick = onClick, modifier = Modifier.fillMaxWidth()) {
         Text(
             text = "$count item${if (count == 1) "" else "s"} could use some attention",
@@ -96,4 +100,32 @@ internal fun LaundryReminderLine(count: Int) {
         style = MaterialTheme.typography.bodyMedium,
         color = WardrobeTheme.extendedColors.textSecondary,
     )
+}
+
+/** Split out of `HomeScreen.kt`'s `HomeContent` purely to stay under
+ * detekt's `LongMethod`/`TooManyFunctions` thresholds (M22) — the
+ * wardrobe-health/attention/trip/laundry status block.
+ * [HomeUiState.showWardrobeHealthCard] now gates both [WardrobeSummaryCard]
+ * and [WardrobeHealthScoreCard] (M22 fix: it previously only gated the
+ * former, despite being the toggle a user sees for "wardrobe health"). */
+@Composable
+internal fun HomeStatusCards(
+    state: HomeUiState,
+    assistantState: HomeAssistantUiState,
+    onOpenInsights: () -> Unit,
+    onOpenTrips: () -> Unit,
+) {
+    if (state.showWardrobeHealthCard && state.summary != null) {
+        WardrobeSummaryCard(state.summary)
+    }
+    if (state.showWardrobeHealthCard) {
+        WardrobeHealthScoreCard(
+            healthScore = assistantState.wardrobeHealthScore,
+            rotationScore = assistantState.rotationScore,
+            onClick = onOpenInsights,
+        )
+    }
+    AttentionItemsCard(count = assistantState.itemsNeedingAttentionCount, onClick = onOpenInsights)
+    UpcomingTripReminderLine(reminder = assistantState.upcomingTripReminder, onClick = onOpenTrips)
+    LaundryReminderLine(count = assistantState.laundryReminderCount)
 }

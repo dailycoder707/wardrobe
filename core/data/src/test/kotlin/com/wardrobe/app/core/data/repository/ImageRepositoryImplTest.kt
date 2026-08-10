@@ -10,19 +10,29 @@ import com.wardrobe.app.core.database.WardrobeDatabase
 import com.wardrobe.app.core.database.entity.CategoryEntity
 import com.wardrobe.app.core.database.entity.GarmentEntity
 import com.wardrobe.app.core.database.entity.ImageMetadataEntity
+import com.wardrobe.app.core.image.metadata.GarmentMetadataEngine
 import com.wardrobe.app.core.image.pipeline.GarmentImagePipeline
+import com.wardrobe.app.core.image.presentation.GarmentPresentationEnhancer
 import com.wardrobe.app.core.image.quality.ImageQualityAnalyzer
-import com.wardrobe.app.core.image.segmentation.BackgroundRemover
+import com.wardrobe.app.core.image.reconstruction.GarmentReconstructionEngine
+import com.wardrobe.app.core.image.segmentation.GarmentExtractionEngine
 import com.wardrobe.app.core.image.storage.ImageFileStore
+import com.wardrobe.app.core.model.ai.AiResultProvenance
+import com.wardrobe.app.core.model.ai.AiResultSource
+import com.wardrobe.app.core.model.ai.MetadataField
+import com.wardrobe.app.core.model.ai.MetadataSuggestion
 import com.wardrobe.app.core.model.common.GarmentId
 import com.wardrobe.app.core.model.garment.BackgroundRemovalStatus
 import com.wardrobe.app.core.model.garment.CategoryLevel
 import com.wardrobe.app.core.model.garment.GarmentStatus
+import com.wardrobe.app.core.model.garment.ImageRetryStage
 import com.wardrobe.app.core.model.garment.ImageType
 import com.wardrobe.app.core.model.garment.ImageVariant
 import com.wardrobe.app.core.model.garment.QualityReport
+import com.wardrobe.app.core.model.garment.ReconstructionOutcome
 import com.wardrobe.app.core.model.garment.StagedImage
 import com.wardrobe.app.core.testing.rule.createInMemoryWardrobeDatabase
+import io.mockk.coEvery
 import io.mockk.mockk
 import io.mockk.verify
 import kotlinx.coroutines.flow.first
@@ -36,6 +46,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import java.io.File
+import java.time.Instant
 
 /**
  * Covers every [ImageRepositoryImpl] method except `stageImage` directly —
@@ -59,7 +70,15 @@ class ImageRepositoryImplTest {
         db = createInMemoryWardrobeDatabase(context())
         fileStore = ImageFileStore(context())
         stagedImageStore = StagedImageStore()
-        val pipeline = GarmentImagePipeline(fileStore, mockk<BackgroundRemover>(relaxed = true), ImageQualityAnalyzer())
+        val pipeline =
+            GarmentImagePipeline(
+                fileStore,
+                mockk<GarmentExtractionEngine>(relaxed = true),
+                mockk<GarmentPresentationEnhancer>(relaxed = true),
+                mockk<GarmentReconstructionEngine>(relaxed = true),
+                mockk<GarmentMetadataEngine>(relaxed = true),
+                ImageQualityAnalyzer(),
+            )
         repository =
             ImageRepositoryImpl(
                 workManager = mockk<WorkManager>(relaxed = true),
@@ -167,6 +186,9 @@ class ImageRepositoryImplTest {
                     qualityReport = QualityReport(emptyList()),
                     backgroundRemovalStatus = BackgroundRemovalStatus.FAILED_KEPT_ORIGINAL,
                     cutoutConfidence = null,
+                    reconstructionOutcome = ReconstructionOutcome.NOT_ATTEMPTED,
+                    occlusionSeverity = null,
+                    metadataSuggestions = emptyList(),
                 ),
             )
 
@@ -188,7 +210,16 @@ class ImageRepositoryImplTest {
             val stagingDir = fileStore.ensureExists(fileStore.stagingDir(stagingId))
             fileStore.fileFor(stagingDir, ImageType.ORIGINAL).writeBytes(byteArrayOf(1))
             stagedImageStore.put(
-                StagedImage(stagingId, emptyList(), QualityReport(emptyList()), BackgroundRemovalStatus.SKIPPED, null),
+                StagedImage(
+                    stagingId = stagingId,
+                    variants = emptyList(),
+                    qualityReport = QualityReport(emptyList()),
+                    backgroundRemovalStatus = BackgroundRemovalStatus.SKIPPED,
+                    cutoutConfidence = null,
+                    reconstructionOutcome = ReconstructionOutcome.NOT_ATTEMPTED,
+                    occlusionSeverity = null,
+                    metadataSuggestions = emptyList(),
+                ),
             )
 
             repository.discardStagedImage(stagingId)
@@ -252,6 +283,73 @@ class ImageRepositoryImplTest {
             val found = repository.findGarmentIdForChecksum("never-seen-hash")
 
             assertEquals(null, found)
+        }
+
+    @Test
+    fun `retryStage METADATA redoes metadata generation and updates the cached staged image`() =
+        runTest {
+            val stagingId = "staging-retry"
+            val stagingDir = fileStore.ensureExists(fileStore.stagingDir(stagingId))
+            val cutoutFile = fileStore.fileFor(stagingDir, ImageType.CUTOUT)
+            val bitmap = Bitmap.createBitmap(100, 100, Bitmap.Config.ARGB_8888).apply { eraseColor(Color.BLUE) }
+            cutoutFile.outputStream().use { bitmap.compress(Bitmap.CompressFormat.WEBP, 90, it) }
+            val initialSuggestions =
+                listOf(
+                    MetadataSuggestion(
+                        MetadataField.PRIMARY_COLOR,
+                        "Gray",
+                        0.8f,
+                        AiResultProvenance(AiResultSource.ON_DEVICE, null, null, null, Instant.EPOCH),
+                    ),
+                )
+            val staged =
+                StagedImage(
+                    stagingId = stagingId,
+                    variants =
+                        listOf(
+                            ImageVariant(ImageType.CUTOUT, cutoutFile.path, 100, 100, cutoutFile.length(), "webp", "h"),
+                        ),
+                    qualityReport = QualityReport(emptyList()),
+                    backgroundRemovalStatus = BackgroundRemovalStatus.SUCCEEDED,
+                    cutoutConfidence = 0.9f,
+                    reconstructionOutcome = ReconstructionOutcome.NOT_ATTEMPTED,
+                    occlusionSeverity = null,
+                    metadataSuggestions = initialSuggestions,
+                )
+            stagedImageStore.put(staged)
+            val newSuggestions =
+                listOf(
+                    MetadataSuggestion(
+                        MetadataField.PRIMARY_COLOR,
+                        "Blue",
+                        0.95f,
+                        AiResultProvenance(AiResultSource.ON_DEVICE, null, null, null, Instant.EPOCH),
+                    ),
+                )
+            val metadataEngine = mockk<GarmentMetadataEngine>()
+            coEvery { metadataEngine.generateMetadata(any()) } returns newSuggestions
+            val retryPipeline =
+                GarmentImagePipeline(
+                    fileStore,
+                    mockk<GarmentExtractionEngine>(relaxed = true),
+                    mockk<GarmentPresentationEnhancer>(relaxed = true),
+                    mockk<GarmentReconstructionEngine>(relaxed = true),
+                    metadataEngine,
+                    ImageQualityAnalyzer(),
+                )
+            val retryRepository =
+                ImageRepositoryImpl(
+                    workManager = mockk<WorkManager>(relaxed = true),
+                    pipeline = retryPipeline,
+                    fileStore = fileStore,
+                    stagedImageStore = stagedImageStore,
+                    imageMetadataDao = db.imageMetadataDao(),
+                )
+
+            val result = retryRepository.retryStage(stagingId, ImageRetryStage.METADATA)
+
+            assertEquals(newSuggestions, result.metadataSuggestions)
+            assertEquals(newSuggestions, stagedImageStore.peek(stagingId)?.metadataSuggestions)
         }
 
     @Test

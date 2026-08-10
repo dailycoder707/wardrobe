@@ -71,6 +71,7 @@ class TryOnCanvasTest {
                     onLayerTransformed = { _, _, _, _, _ -> },
                     onResetToAutoPlacement = {},
                     onEditMask = {},
+                    onCompareWithCloud = {},
                 )
             }
         }

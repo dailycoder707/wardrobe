@@ -50,6 +50,7 @@ private const val MAX_SCALE = 3f
 fun TryOnScreen(
     onNeedsBodyProfile: () -> Unit,
     onEditMask: (GarmentId) -> Unit,
+    onCompareWithCloud: (GarmentId) -> Unit,
     modifier: Modifier = Modifier,
     viewModel: TryOnViewModel = hiltViewModel(),
 ) {
@@ -75,6 +76,7 @@ fun TryOnScreen(
                         onLayerTransformed = viewModel::onLayerTransformed,
                         onResetToAutoPlacement = viewModel::onResetToAutoPlacement,
                         onEditMask = onEditMask,
+                        onCompareWithCloud = onCompareWithCloud,
                     )
                 }
             }
@@ -102,6 +104,7 @@ internal fun TryOnCanvas(
     onLayerTransformed: (GarmentId, Float, Float, Float, Float) -> Unit,
     onResetToAutoPlacement: (GarmentId) -> Unit,
     onEditMask: (GarmentId) -> Unit,
+    onCompareWithCloud: (GarmentId) -> Unit,
 ) {
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         val canvasWidthPx = constraints.maxWidth.toFloat()
@@ -118,29 +121,32 @@ internal fun TryOnCanvas(
 
         // Sorted by `sortForRender` in the ViewModel — rendered in that order
         // so a later (higher-depth) layer draws on top of an earlier one.
+        val callbacks = TryOnLayerCallbacks(onLayerTransformed, onResetToAutoPlacement, onEditMask, onCompareWithCloud)
         state.layers.forEach { layer ->
             key(layer.garmentId.value) {
-                TryOnGarmentLayer(
-                    layer,
-                    canvasWidthPx,
-                    canvasHeightPx,
-                    onLayerTransformed,
-                    onResetToAutoPlacement,
-                    onEditMask,
-                )
+                TryOnGarmentLayer(layer, canvasWidthPx, canvasHeightPx, callbacks)
             }
         }
     }
 }
+
+/** Bundles [TryOnGarmentLayer]'s per-layer callbacks purely to keep that
+ * function's own parameter count under this project's `LongParameterList`
+ * threshold — the same reasoning as `feature:capture`'s
+ * `GarmentReviewCallbacks`. */
+private class TryOnLayerCallbacks(
+    val onLayerTransformed: (GarmentId, Float, Float, Float, Float) -> Unit,
+    val onResetToAutoPlacement: (GarmentId) -> Unit,
+    val onEditMask: (GarmentId) -> Unit,
+    val onCompareWithCloud: (GarmentId) -> Unit,
+)
 
 @Composable
 private fun TryOnGarmentLayer(
     layer: TryOnLayerUiModel,
     canvasWidthPx: Float,
     canvasHeightPx: Float,
-    onLayerTransformed: (GarmentId, Float, Float, Float, Float) -> Unit,
-    onResetToAutoPlacement: (GarmentId) -> Unit,
-    onEditMask: (GarmentId) -> Unit,
+    callbacks: TryOnLayerCallbacks,
 ) {
     var offsetXFraction by remember(layer.template.id) { mutableFloatStateOf(layer.template.offsetXFraction) }
     var offsetYFraction by remember(layer.template.id) { mutableFloatStateOf(layer.template.offsetYFraction) }
@@ -178,15 +184,24 @@ private fun TryOnGarmentLayer(
                             offsetYFraction += pan.y / canvasHeightPx
                             scale = (scale * zoom).coerceIn(MIN_SCALE, MAX_SCALE)
                             rotation += rotationDelta
-                            onLayerTransformed(layer.garmentId, offsetXFraction, offsetYFraction, scale, rotation)
+                            callbacks.onLayerTransformed(
+                                layer.garmentId,
+                                offsetXFraction,
+                                offsetYFraction,
+                                scale,
+                                rotation,
+                            )
                         }
                     },
         )
-        TextButton(onClick = { onResetToAutoPlacement(layer.garmentId) }) {
+        TextButton(onClick = { callbacks.onResetToAutoPlacement(layer.garmentId) }) {
             Text("Reset to Auto Placement")
         }
-        TextButton(onClick = { onEditMask(layer.garmentId) }) {
+        TextButton(onClick = { callbacks.onEditMask(layer.garmentId) }) {
             Text("Edit Mask")
+        }
+        TextButton(onClick = { callbacks.onCompareWithCloud(layer.garmentId) }) {
+            Text("Compare with Cloud")
         }
     }
 }

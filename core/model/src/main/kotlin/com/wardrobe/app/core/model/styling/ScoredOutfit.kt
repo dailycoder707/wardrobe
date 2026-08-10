@@ -1,5 +1,6 @@
 package com.wardrobe.app.core.model.styling
 
+import com.wardrobe.app.core.model.ai.AiResultProvenance
 import com.wardrobe.app.core.model.common.GarmentId
 import com.wardrobe.app.core.model.outfit.Outfit
 
@@ -36,6 +37,17 @@ data class JewelryItemExplanation(
  * change this phase deliberately doesn't make. These two fields are presentation-
  * only, rendered as "Also consider wearing" chips, never written to the database;
  * both default to empty so every pre-Phase-9 construction site keeps compiling.
+ *
+ * [provenance]/[aiConfidence] are `null` for every rule-engine-generated
+ * outfit (the only source until Add-to-Wardrobe v2's Cloud Outfit Styling
+ * capability, M12) — a cloud-suggested outfit that survives
+ * [validateCloudOutfit]'s validation carries a real [AiResultProvenance] and
+ * its provider's genuine confidence estimate instead, so the Review UI can
+ * show "AI Styled" with its provider/confidence/reasoning. Never fabricated:
+ * a rule-engine outfit's `null` here is the honest "no cloud provenance to
+ * show," not an omitted value. Kept separate from [score] (the rule
+ * engine's own arbitrary-scale ranking number, always present) since a
+ * provider's 0..1 confidence is a different, cloud-only concept.
  */
 data class ScoredOutfit(
     val outfit: Outfit,
@@ -44,4 +56,6 @@ data class ScoredOutfit(
     val passedWeatherFilter: Boolean,
     val accessoryItems: List<AccessoryItemExplanation> = emptyList(),
     val jewelryItems: List<JewelryItemExplanation> = emptyList(),
+    val provenance: AiResultProvenance? = null,
+    val aiConfidence: Float? = null,
 )

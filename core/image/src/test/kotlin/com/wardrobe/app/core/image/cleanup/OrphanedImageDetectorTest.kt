@@ -13,14 +13,16 @@ class OrphanedImageDetectorTest {
     val tempFolder = TemporaryFolder()
 
     @Test
-    fun `findOrphans returns only files with no matching referenced path`() {
+    fun `findOrphans returns only old files with no matching referenced path`() {
         val referenced = tempFolder.newFile("referenced.jpg")
         val orphan = tempFolder.newFile("orphan.jpg")
+        val oldCutoff = Instant.now().plusSeconds(60)
 
         val result =
             OrphanedImageDetector.findOrphans(
                 referencedPaths = setOf(referenced.path),
                 filesOnDisk = listOf(referenced, orphan),
+                olderThan = oldCutoff,
             )
 
         assertEquals(listOf(orphan), result)
@@ -30,14 +32,39 @@ class OrphanedImageDetectorTest {
     fun `findOrphans returns nothing when every file is referenced`() {
         val fileA = tempFolder.newFile("a.jpg")
         val fileB = tempFolder.newFile("b.jpg")
+        val oldCutoff = Instant.now().plusSeconds(60)
 
         val result =
             OrphanedImageDetector.findOrphans(
                 referencedPaths = setOf(fileA.path, fileB.path),
                 filesOnDisk = listOf(fileA, fileB),
+                olderThan = oldCutoff,
             )
 
         assertTrue(result.isEmpty())
+    }
+
+    @Test
+    fun `findOrphans never deletes a just-written unreferenced file, only ones older than the cutoff`() {
+        // Regression test for RC2's race finding: ImageRepositoryImpl.commitStagedImage
+        // moves a garment's files into place before inserting its image_metadata
+        // row, so a file can briefly exist on disk with no row yet. A cutoff in
+        // the past (not the future, unlike the other tests here) simulates that
+        // real narrow window — the file was just written, so its mtime is after
+        // the cutoff, and it must survive this sweep.
+        val justWritten = tempFolder.newFile("just-committed.jpg")
+        val trueOrphan = tempFolder.newFile("long-abandoned.jpg")
+        trueOrphan.setLastModified(Instant.now().minusSeconds(3600).toEpochMilli())
+        val cutoffInThePast = Instant.now().minusSeconds(60)
+
+        val result =
+            OrphanedImageDetector.findOrphans(
+                referencedPaths = emptySet(),
+                filesOnDisk = listOf(justWritten, trueOrphan),
+                olderThan = cutoffInThePast,
+            )
+
+        assertEquals(listOf(trueOrphan), result)
     }
 
     @Test

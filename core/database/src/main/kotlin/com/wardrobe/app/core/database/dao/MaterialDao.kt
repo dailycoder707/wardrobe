@@ -27,6 +27,13 @@ interface MaterialDao {
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insert(entity: MaterialEntity): Long
 
+    /** Fresh-install seeding (`WardrobeDatabase.SeedCallback`) — see that
+     * class's KDoc for why an unseeded reference table would permanently
+     * block AI-suggested-material auto-fill (nothing exists yet to match
+     * a suggestion's name against). */
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertAll(entities: List<MaterialEntity>)
+
     @Query("DELETE FROM materials WHERE id = :id")
     suspend fun deleteById(id: Long)
 }

@@ -12,12 +12,14 @@ import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.wardrobe.app.core.model.garment.GarmentSort
 import com.wardrobe.app.core.model.garment.GarmentSortField
 import com.wardrobe.app.core.model.garment.SortDirection
+import com.wardrobe.app.core.ui.components.ConfirmationToastState
 import com.wardrobe.app.feature.closet.addwardrobe.AddToWardrobeSheet
 
 private val SORT_FIELD_LABELS =
@@ -30,6 +32,7 @@ private val SORT_FIELD_LABELS =
         GarmentSortField.PRICE to "Price",
         GarmentSortField.WEAR_COUNT to "Wear Count",
         GarmentSortField.COST_PER_WEAR to "Cost Per Wear",
+        GarmentSortField.FAVORITE_FIRST to "Favorite First",
     )
 
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
@@ -109,6 +112,26 @@ internal fun ClosetScreenSheets(
             onSortChange = viewModel::onSortChange,
             onDismiss = onDismissSortSheet,
         )
+    }
+}
+
+/** The two one-shot [LaunchedEffect]s [ClosetScreen] needs, extracted purely
+ * to keep its own body under detekt's `LongMethod` threshold. */
+@Composable
+internal fun ClosetScreenEffects(
+    state: ClosetUiState,
+    viewModel: ClosetViewModel,
+    toastState: ConfirmationToastState,
+    initialFavoriteFilter: Boolean,
+) {
+    LaunchedEffect(Unit) {
+        if (initialFavoriteFilter) viewModel.onFiltersChange(ClosetFilterState.EMPTY.copy(favoriteOnly = true))
+    }
+    LaunchedEffect(state.toastMessage) {
+        state.toastMessage?.let {
+            toastState.show(it)
+            viewModel.onToastShown()
+        }
     }
 }
 

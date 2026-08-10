@@ -36,8 +36,16 @@ class Migration4To5Test {
         val migratedDb =
             Room
                 .databaseBuilder(context, WardrobeDatabase::class.java, dbFile.absolutePath)
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
-                .build()
+                .addMigrations(
+                    MIGRATION_1_2,
+                    MIGRATION_2_3,
+                    MIGRATION_3_4,
+                    MIGRATION_4_5,
+                    MIGRATION_5_6,
+                    MIGRATION_6_7,
+                    MIGRATION_7_8,
+                    MIGRATION_8_9,
+                ).build()
         val supportDb = migratedDb.openHelper.writableDatabase
 
         val syncIds = mutableListOf<String>()
@@ -70,8 +78,16 @@ class Migration4To5Test {
         val migratedDb =
             Room
                 .databaseBuilder(context, WardrobeDatabase::class.java, dbFile.absolutePath)
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
-                .build()
+                .addMigrations(
+                    MIGRATION_1_2,
+                    MIGRATION_2_3,
+                    MIGRATION_3_4,
+                    MIGRATION_4_5,
+                    MIGRATION_5_6,
+                    MIGRATION_6_7,
+                    MIGRATION_7_8,
+                    MIGRATION_8_9,
+                ).build()
         val supportDb = migratedDb.openHelper.writableDatabase
 
         supportDb.execSQL("INSERT INTO tags (name, syncId, updatedAt) VALUES ('Vacation', 'a-new-sync-id', 12345)")

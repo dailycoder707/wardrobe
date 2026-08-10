@@ -16,6 +16,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CalendarViewMonth
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
@@ -45,6 +46,7 @@ import com.wardrobe.app.core.model.common.GarmentId
 import com.wardrobe.app.core.model.common.OutfitId
 import com.wardrobe.app.core.ui.components.ConfirmationToastHost
 import com.wardrobe.app.core.ui.components.ConfirmationToastState
+import com.wardrobe.app.core.ui.components.EmptyState
 import com.wardrobe.app.core.ui.components.rememberConfirmationToastState
 import java.time.Instant
 import java.time.LocalDate
@@ -60,6 +62,7 @@ fun CalendarScreen(
     viewModel: CalendarViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val recommendationState by viewModel.recommendationState.collectAsStateWithLifecycle()
     var isLogSheetOpen by remember { mutableStateOf(false) }
     var datePickerTarget by remember { mutableStateOf<Pair<DatePickerPurpose, Long>?>(null) }
     val toastState = rememberConfirmationToastState()
@@ -90,16 +93,11 @@ fun CalendarScreen(
         },
     ) { innerPadding ->
         val dayDetailActions =
-            DayDetailActions(
-                onLogWear = { isLogSheetOpen = true },
-                onClearDay = { viewModel.actions.onClearDay(state.selectedDate) },
-                onDuplicateDay = { datePickerTarget = DatePickerPurpose.DUPLICATE to 0L },
-                onScheduleRecurring = { outfitId ->
-                    viewModel.actions.onScheduleRecurringOutfit(OutfitId(outfitId), state.selectedDate)
-                },
-                onRescheduleEvent = { eventId -> datePickerTarget = DatePickerPurpose.RESCHEDULE to eventId },
-                onConfirmWorn = viewModel.actions::onConfirmWorn,
-                onDeleteEvent = viewModel.actions::onDeleteEvent,
+            buildDayDetailActions(
+                viewModel = viewModel,
+                state = state,
+                onLogSheetRequested = { isLogSheetOpen = true },
+                onDatePickerRequested = { purpose, eventId -> datePickerTarget = purpose to eventId },
             )
         CalendarScaffoldContent(
             state = state,
@@ -110,6 +108,8 @@ fun CalendarScreen(
         )
     }
 
+    RecommendationSheetHost(recommendationState = recommendationState, actions = viewModel.recommendationActions)
+
     CalendarOverlays(
         state = state,
         viewModel = viewModel,
@@ -118,6 +118,42 @@ fun CalendarScreen(
         datePickerTarget = datePickerTarget,
         onDatePickerDismissed = { datePickerTarget = null },
     )
+}
+
+private fun buildDayDetailActions(
+    viewModel: CalendarViewModel,
+    state: CalendarUiState,
+    onLogSheetRequested: () -> Unit,
+    onDatePickerRequested: (DatePickerPurpose, Long) -> Unit,
+): DayDetailActions =
+    DayDetailActions(
+        onLogWear = onLogSheetRequested,
+        onClearDay = { viewModel.actions.onClearDay(state.selectedDate) },
+        onDuplicateDay = { onDatePickerRequested(DatePickerPurpose.DUPLICATE, 0L) },
+        onScheduleRecurring = { outfitId ->
+            viewModel.actions.onScheduleRecurringOutfit(OutfitId(outfitId), state.selectedDate)
+        },
+        onRescheduleEvent = { eventId -> onDatePickerRequested(DatePickerPurpose.RESCHEDULE, eventId) },
+        onConfirmWorn = viewModel.actions::onConfirmWorn,
+        onDeleteEvent = viewModel.actions::onDeleteEvent,
+        onGetRecommendation = viewModel.recommendationActions::onRequestRecommendation,
+        onReplaceEvent = viewModel.recommendationActions::onReplaceEvent,
+        onOccasionSelected = viewModel::onOccasionSelected,
+    )
+
+@Composable
+private fun RecommendationSheetHost(
+    recommendationState: DayRecommendationUiState,
+    actions: CalendarRecommendationActions,
+) {
+    if (recommendationState != DayRecommendationUiState.Idle) {
+        DayRecommendationSheet(
+            state = recommendationState,
+            onShowAnother = actions::onShowAnother,
+            onPlan = actions::onPlanRecommendedOutfit,
+            onDismiss = actions::onCancel,
+        )
+    }
 }
 
 @Composable
@@ -133,6 +169,16 @@ private fun CalendarScaffoldContent(
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator()
             }
+        } else if (state.error != null) {
+            // M22 fix: previously an unhandled repository failure here left
+            // the screen stuck on the spinner above forever, with no way to
+            // tell the user's real device apart from a slow load.
+            EmptyState(
+                icon = Icons.Outlined.CalendarMonth,
+                headline = "Couldn't load your calendar",
+                supportingText = state.error,
+                modifier = Modifier.fillMaxSize(),
+            )
         } else if (state.viewMode == CalendarViewMode.LIST) {
             WearHistoryList(groups = state.historyByMonth, modifier = Modifier.fillMaxSize())
         } else {
@@ -258,6 +304,9 @@ private fun CalendarBody(
                     actions = dayDetailActions,
                     modifier = Modifier.weight(1f).fillMaxSize().verticalScroll(rememberScrollState()),
                     conflictMessages = state.selectedDayConflictMessages,
+                    availableOccasions = state.availableOccasions,
+                    selectedOccasionId = state.selectedDayOccasionId,
+                    weather = state.selectedDateWeather,
                 )
             }
         } else {
@@ -274,6 +323,9 @@ private fun CalendarBody(
                     actions = dayDetailActions,
                     modifier = Modifier.fillMaxWidth(),
                     conflictMessages = state.selectedDayConflictMessages,
+                    availableOccasions = state.availableOccasions,
+                    selectedOccasionId = state.selectedDayOccasionId,
+                    weather = state.selectedDateWeather,
                 )
             }
         }
