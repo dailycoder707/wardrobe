@@ -57,6 +57,7 @@ suspend fun GarmentImagePipeline.retryExtraction(
         variants = finalized.variants,
         comparisonStages = finalized.comparisonStages,
         aiProcessingSummary = buildAiProcessingSummary(metadataSuggestions, finalized.elapsedMs),
+        extractionProvenance = extraction.provenance,
     )
 }
 

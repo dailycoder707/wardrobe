@@ -25,4 +25,22 @@ data class AiResultProvenance(
      * lookup) — `null` only for on-device results, which don't route
      * through the Gateway's timing. Never a fabricated/rounded estimate. */
     val latencyMs: Long? = null,
-)
+    /** What the user's Settings actually asked for, which is not always what
+     * ran: a configured cloud capability whose dispatch fails degrades to
+     * on-device (by design — cloud never breaks a capability), and before
+     * this field that degradation was invisible above the router. Defaults
+     * to [source], so a result that never attempted anything else is
+     * truthfully "requested == actual" and every existing call site keeps
+     * its exact meaning. */
+    val requestedSource: AiResultSource = source,
+    /** Why [requestedSource] didn't produce this result — `null` whenever
+     * no fallback happened. Provider-reported text only (already redacted
+     * of credentials by the adapter that produced it); never an auth
+     * header, key, or raw request payload. */
+    val fallbackReason: String? = null,
+) {
+    /** True only when the pipeline genuinely asked for one source and
+     * delivered another — never `true` for a plain on-device run the user
+     * selected deliberately. */
+    val fallbackUsed: Boolean get() = requestedSource != source
+}

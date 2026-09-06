@@ -84,11 +84,19 @@ internal fun buildAiProcessingSummary(
     val provenances = metadataSuggestions.map { it.provenance }
     val cloudProvenance = provenances.firstOrNull { it.source == AiResultSource.CLOUD }
     val confidences = metadataSuggestions.mapNotNull { it.confidence }
+    // A cloud attempt that failed leaves on-device suggestions carrying the
+    // requested source and the reason (GarmentMetadataEngineRouter) — the
+    // summary has to keep both, or the review screen presents a fallback as
+    // if it were the configured provider.
+    val fallback = provenances.firstOrNull { it.fallbackUsed }
+    val actualSource = cloudProvenance?.source ?: AiResultSource.ON_DEVICE
     return AiProcessingSummary(
-        source = cloudProvenance?.source ?: AiResultSource.ON_DEVICE,
+        source = actualSource,
         provider = cloudProvenance?.provider,
         averageConfidence = confidences.takeIf { it.isNotEmpty() }?.average()?.toFloat(),
         processingMs = processingMs,
         cacheHit = provenances.any { it.cacheHit },
+        requestedSource = fallback?.requestedSource ?: actualSource,
+        fallbackReason = fallback?.fallbackReason,
     )
 }

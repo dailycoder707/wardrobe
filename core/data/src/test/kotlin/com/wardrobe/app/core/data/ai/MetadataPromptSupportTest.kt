@@ -12,10 +12,30 @@ private val PROVENANCE = AiResultProvenance(AiResultSource.CLOUD, "generic", nul
 
 private fun String.normalizeWhitespace(): String = replace(Regex("\\s+"), " ")
 
+private fun emptyReferenceOptions() =
+    MetadataReferenceOptions(
+        categoryNames = emptyList(),
+        colorNames = emptyList(),
+        materialNames = emptyList(),
+        fabricNames = emptyList(),
+        occasionNames = emptyList(),
+        tagNames = emptyList(),
+    )
+
+private fun populatedReferenceOptions() =
+    MetadataReferenceOptions(
+        categoryNames = listOf("Dresses", "Tops"),
+        colorNames = listOf("Navy", "Mustard Yellow"),
+        materialNames = listOf("Cotton", "Polyester"),
+        fabricNames = listOf("Jersey", "Denim"),
+        occasionNames = listOf("Work", "Weekend"),
+        tagNames = listOf("Minimalist"),
+    )
+
 class MetadataPromptSupportTest {
     @Test
     fun `system prompt lists every MetadataField by name, including the newly-bound ones`() {
-        val prompt = buildMetadataSystemPrompt()
+        val prompt = buildMetadataSystemPrompt(emptyReferenceOptions())
 
         listOf(
             MetadataField.FABRIC,
@@ -31,21 +51,21 @@ class MetadataPromptSupportTest {
 
     @Test
     fun `system prompt explains FABRIC is distinct from MATERIAL`() {
-        val normalized = buildMetadataSystemPrompt().normalizeWhitespace()
+        val normalized = buildMetadataSystemPrompt(emptyReferenceOptions()).normalizeWhitespace()
 
         assertTrue("distinct from MATERIAL" in normalized)
     }
 
     @Test
     fun `system prompt explains OCCASION is distinct from DRESS_CODE`() {
-        val normalized = buildMetadataSystemPrompt().normalizeWhitespace()
+        val normalized = buildMetadataSystemPrompt(emptyReferenceOptions()).normalizeWhitespace()
 
         assertTrue("distinct from DRESS_CODE" in normalized)
     }
 
     @Test
     fun `system prompt spells out valid NECKLINE, GENDER and WATERPROOF_LEVEL enum values`() {
-        val prompt = buildMetadataSystemPrompt()
+        val prompt = buildMetadataSystemPrompt(emptyReferenceOptions())
 
         assertTrue("CREW" in prompt)
         assertTrue("UNISEX" in prompt)
@@ -53,17 +73,55 @@ class MetadataPromptSupportTest {
     }
 
     @Test
+    fun `system prompt spells out valid FIT, LENGTH, SLEEVE_LENGTH, SEASON and DRESS_CODE enum values`() {
+        val prompt = buildMetadataSystemPrompt(emptyReferenceOptions())
+
+        assertTrue("OVERSIZED" in prompt)
+        assertTrue("CROP" in prompt)
+        assertTrue("THREE_QUARTER" in prompt)
+        assertTrue("AUTUMN" in prompt)
+        assertTrue("SMART_CASUAL" in prompt)
+    }
+
+    @Test
     fun `system prompt allows OCCASION to repeat, alongside SEASON, DRESS_CODE and STYLE_TAG`() {
-        val prompt = buildMetadataSystemPrompt()
+        val prompt = buildMetadataSystemPrompt(emptyReferenceOptions())
 
         assertTrue("SEASON, DRESS_CODE, OCCASION, and STYLE_TAG may each appear more than" in prompt)
     }
 
     @Test
     fun `system prompt tells the model to omit a field entirely rather than guess N slash A`() {
-        val prompt = buildMetadataSystemPrompt()
+        val prompt = buildMetadataSystemPrompt(emptyReferenceOptions())
 
         assertTrue("never a" in prompt && "placeholder value" in prompt)
+    }
+
+    @Test
+    fun `an empty wardrobe's reference options are omitted from the prompt rather than an empty constraint`() {
+        val prompt = buildMetadataSystemPrompt(emptyReferenceOptions())
+
+        assertTrue("Valid CATEGORY" !in prompt)
+        assertTrue("MUST choose the single closest match" !in prompt)
+    }
+
+    @Test
+    fun `a populated wardrobe's real reference-data names are injected into the prompt`() {
+        val prompt = buildMetadataSystemPrompt(populatedReferenceOptions())
+
+        assertTrue("Dresses" in prompt)
+        assertTrue("Mustard Yellow" in prompt)
+        assertTrue("Jersey" in prompt)
+        assertTrue("Work" in prompt)
+        assertTrue("Minimalist" in prompt)
+        assertTrue("MUST choose the single closest match" in prompt)
+    }
+
+    @Test
+    fun `reference-data section never mentions BRAND, an unseen brand is always a valid answer`() {
+        val prompt = buildMetadataSystemPrompt(populatedReferenceOptions())
+
+        assertTrue("Valid BRAND options" !in prompt)
     }
 
     @Test

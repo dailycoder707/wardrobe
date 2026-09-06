@@ -1,6 +1,7 @@
 package com.wardrobe.app.core.image.segmentation
 
 import android.graphics.Bitmap
+import com.wardrobe.app.core.model.ai.AiResultProvenance
 
 /**
  * The Add-to-Wardrobe v2 capability interface superseding
@@ -20,10 +21,15 @@ interface GarmentExtractionEngine {
 sealed interface ExtractionResult {
     /** [confidence] is `null` when the implementation doesn't expose a real
      * scalar confidence — never fabricated, same convention as
-     * [CutoutResult.Success]. */
+     * [CutoutResult.Success]. [provenance] mirrors `GarmentMetadataEngine`'s
+     * (M24/M25 real-device finding — a `GARMENT_EXTRACTION` row configured
+     * for `Cloud` whose dispatch fails degraded to on-device silently;
+     * `provenance.fallbackUsed`/`fallbackReason` is what lets the review
+     * screen say so instead). */
     data class Success(
         val transparentCutout: Bitmap,
         val confidence: Float?,
+        val provenance: AiResultProvenance,
     ) : ExtractionResult
 
     data class Failure(

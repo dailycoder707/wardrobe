@@ -114,6 +114,7 @@ class GarmentImagePipeline
                 metadataSuggestions = metadataSuggestions,
                 comparisonStages = comparisonStages,
                 aiProcessingSummary = buildAiProcessingSummary(metadataSuggestions, aiStagesElapsedMs),
+                extractionProvenance = extraction.provenance,
             )
         }
 

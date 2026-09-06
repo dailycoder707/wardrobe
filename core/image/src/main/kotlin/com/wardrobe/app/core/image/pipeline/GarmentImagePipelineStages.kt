@@ -7,6 +7,7 @@ import com.wardrobe.app.core.image.reconstruction.GarmentReconstructionEngine
 import com.wardrobe.app.core.image.reconstruction.ReconstructionResult
 import com.wardrobe.app.core.image.segmentation.ExtractionResult
 import com.wardrobe.app.core.image.segmentation.GarmentExtractionEngine
+import com.wardrobe.app.core.model.ai.AiResultProvenance
 import com.wardrobe.app.core.model.ai.MetadataSuggestion
 import com.wardrobe.app.core.model.garment.BackgroundRemovalStatus
 import com.wardrobe.app.core.model.garment.ProcessingStage
@@ -23,6 +24,9 @@ internal class ExtractionOutcome(
     val cutout: Bitmap?,
     val status: BackgroundRemovalStatus,
     val confidence: Float?,
+    /** `null` on [ExtractionResult.Failure] — nothing succeeded, so there is
+     * no dispatch outcome to report (M25 real-device finding). */
+    val provenance: AiResultProvenance? = null,
 )
 
 internal class PresentationOutcome(
@@ -44,7 +48,12 @@ internal suspend fun extractGarment(
     onProgress(ProcessingStage.EXTRACTING_GARMENT)
     return when (val result = engine.extract(workingBitmap)) {
         is ExtractionResult.Success -> {
-            ExtractionOutcome(result.transparentCutout, BackgroundRemovalStatus.SUCCEEDED, result.confidence)
+            ExtractionOutcome(
+                result.transparentCutout,
+                BackgroundRemovalStatus.SUCCEEDED,
+                result.confidence,
+                result.provenance,
+            )
         }
 
         is ExtractionResult.Failure -> {

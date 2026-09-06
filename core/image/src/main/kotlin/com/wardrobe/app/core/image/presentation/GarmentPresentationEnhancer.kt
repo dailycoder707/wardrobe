@@ -4,24 +4,20 @@ import android.graphics.Bitmap
 import android.graphics.BlurMaskFilter
 import android.graphics.Canvas
 import android.graphics.Color
-import android.graphics.ColorMatrix
-import android.graphics.ColorMatrixColorFilter
 import android.graphics.Paint
 import android.graphics.Rect
 import android.graphics.RectF
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlin.math.roundToInt
 
 private const val ALPHA_OPAQUE_THRESHOLD = 32
 private const val ALPHA_SHIFT_BITS = 24
 private const val RED_SHIFT_BITS = 16
 private const val GREEN_SHIFT_BITS = 8
 private const val BYTE_MASK = 0xFF
-private const val RGB_CHANNEL_COUNT = 3f
 private const val CROP_PADDING_FRACTION = 0.04f
 private const val TARGET_LUMINANCE = 128f
-private const val MAX_WHITE_BALANCE_GAIN = 1.4f
-private const val MIN_WHITE_BALANCE_GAIN = 0.7f
 private const val CONTRAST_BOOST = 1.08f
 private const val SHADOW_BLUR_RADIUS_FRACTION = 0.02f
 private const val SHADOW_ALPHA = 70
@@ -34,9 +30,12 @@ private const val SHADOW_HEIGHT_FRACTION = 0.06f
  * on-device only, no cloud variant, since it's classical image processing,
  * not "AI." Never touches color, embroidery, print, or fabric texture:
  * every operation here is a uniform geometric transform (deskew/crop) or a
- * uniform per-channel linear color transform (white balance/contrast) — the
- * kind of change that can't selectively alter one part of a pattern
- * differently from another.
+ * uniform, identical-across-every-pixel contrast boost — the kind of change
+ * that can't selectively alter one part of a pattern differently from
+ * another. No per-channel white balance is applied here (M25 real-device
+ * finding — see [applyWhiteBalanceAndContrast]'s own KDoc for why gray-world
+ * balancing over an isolated garment cutout was actively wrong, not merely
+ * unnecessary).
  *
  * Deliberately **not** attempted: full 4-point perspective/homography
  * flattening (only meaningful for flat-lay/hanger photos, and unreliable
@@ -111,71 +110,50 @@ private fun paddedCropRect(
     )
 }
 
-/** Gray-world white balance (equalize the three channel means over opaque
- * pixels only — background/transparent pixels never skew the estimate)
- * folded into the same linear transform as a mild, fixed contrast boost.
- * Both are uniform per-channel scale/offset operations — incapable of
- * selectively altering one region's color relative to another the way a
- * "change the color" edit would. */
+/** M25 real-device finding: this used to also apply gray-world white balance
+ * — equalizing the three channel means over the garment's own opaque pixels
+ * toward a shared gray average. That's the wrong domain for gray-world:
+ * the assumption a gray-world correction depends on ("the scene's average
+ * reflectance is neutral gray") is true of a whole photographed scene, not
+ * of a single already-isolated, often strongly-colored garment. Applied to
+ * the cutout alone, it read a garment's own real hue as a "color cast" and
+ * pulled every channel toward the others — a saturated red top measurably
+ * desaturated toward gray on every enhance() call, the opposite of
+ * "preserve original garment color." Only the contrast boost survives,
+ * pivoted at [TARGET_LUMINANCE] so it can't clip highlights the way the old
+ * per-channel gain (up to 1.4x, multiplied into a pivot computed for gain=1)
+ * did — see the file's own git history for the old formula.
+ *
+ * Direct per-pixel arithmetic, not `Canvas`/`ColorMatrixColorFilter` (M25
+ * real-device follow-up): identical math, but real, deterministic integer
+ * arithmetic this project can actually unit-test — Robolectric's `Canvas`
+ * shadow does not apply a `ColorMatrixColorFilter` at all, which is what let
+ * the original gray-world bug ship unnoticed (the color-based assertion
+ * silently degenerated to comparing two zeros under test, always passing
+ * regardless of what the real transform did). */
 private fun applyWhiteBalanceAndContrast(bitmap: Bitmap): Bitmap {
     val width = bitmap.width
     val height = bitmap.height
     val pixels = IntArray(width * height)
     bitmap.getPixels(pixels, 0, width, 0, 0, width, height)
-
-    var count = 0L
-    var sumR = 0L
-    var sumG = 0L
-    var sumB = 0L
-    for (pixel in pixels) {
-        if ((pixel ushr ALPHA_SHIFT_BITS) < ALPHA_OPAQUE_THRESHOLD) continue
-        count++
-        sumR += (pixel shr RED_SHIFT_BITS) and BYTE_MASK
-        sumG += (pixel shr GREEN_SHIFT_BITS) and BYTE_MASK
-        sumB += pixel and BYTE_MASK
-    }
-    if (count == 0L) return bitmap
-    val meanR = sumR.toFloat() / count
-    val meanG = sumG.toFloat() / count
-    val meanB = sumB.toFloat() / count
-    val grayAverage = (meanR + meanG + meanB) / RGB_CHANNEL_COUNT
-
-    fun gain(mean: Float): Float =
-        if (mean <= 0f) 1f else (grayAverage / mean).coerceIn(MIN_WHITE_BALANCE_GAIN, MAX_WHITE_BALANCE_GAIN)
-
     val offset = TARGET_LUMINANCE * (1f - CONTRAST_BOOST)
-    val colorMatrix =
-        ColorMatrix(
-            floatArrayOf(
-                gain(meanR) * CONTRAST_BOOST,
-                0f,
-                0f,
-                0f,
-                offset,
-                0f,
-                gain(meanG) * CONTRAST_BOOST,
-                0f,
-                0f,
-                offset,
-                0f,
-                0f,
-                gain(meanB) * CONTRAST_BOOST,
-                0f,
-                offset,
-                0f,
-                0f,
-                0f,
-                1f,
-                0f,
-            ),
-        )
-
-    val result = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
-    val canvas = Canvas(result)
-    val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { colorFilter = ColorMatrixColorFilter(colorMatrix) }
-    canvas.drawBitmap(bitmap, 0f, 0f, paint)
-    return result
+    for (index in pixels.indices) {
+        val pixel = pixels[index]
+        val alpha = (pixel ushr ALPHA_SHIFT_BITS) and BYTE_MASK
+        val red = contrastChannel((pixel shr RED_SHIFT_BITS) and BYTE_MASK, offset)
+        val green = contrastChannel((pixel shr GREEN_SHIFT_BITS) and BYTE_MASK, offset)
+        val blue = contrastChannel(pixel and BYTE_MASK, offset)
+        pixels[index] = (alpha shl ALPHA_SHIFT_BITS) or (red shl RED_SHIFT_BITS) or (green shl GREEN_SHIFT_BITS) or blue
+    }
+    return Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888).apply {
+        setPixels(pixels, 0, width, 0, 0, width, height)
+    }
 }
+
+private fun contrastChannel(
+    value: Int,
+    offset: Float,
+): Int = ((value * CONTRAST_BOOST) + offset).roundToInt().coerceIn(0, BYTE_MASK)
 
 /** The white-background variant is always computed locally by compositing
  * onto white — no extra cloud call needed regardless of which extraction

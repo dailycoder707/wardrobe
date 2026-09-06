@@ -7,6 +7,7 @@ import com.wardrobe.app.core.ai.privacy.PrivacyPreprocessor
 import com.wardrobe.app.core.database.dao.AiResultCacheDao
 import com.wardrobe.app.core.model.ai.AiCallOutcome
 import com.wardrobe.app.core.model.ai.AiCapability
+import com.wardrobe.app.core.model.ai.AiFallbackReasons
 import com.wardrobe.app.core.model.ai.AiVendor
 import kotlinx.coroutines.TimeoutCancellationException
 import java.io.IOException
@@ -106,7 +107,7 @@ class DefaultAiGateway
             val baseUrl = context.config.baseUrl
             return if (adapter == null || baseUrl.isNullOrBlank()) {
                 recordMetric(aiMetrics, context, DispatchOutcome(0, AiCallOutcome.FAILURE))
-                ImageTaskResult.Failure("image_task_adapter_unavailable")
+                ImageTaskResult.Failure(AiFallbackReasons.IMAGE_TASK_ADAPTER_UNAVAILABLE)
             } else {
                 val request = ImageTaskAdapterRequest(baseUrl, context.apiKey, context.config.model, taskType, payloads)
                 dispatchImageTask(context, promptVersion, cacheKey, adapter, request)

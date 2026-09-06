@@ -46,3 +46,24 @@ fun AiVendor.defaultBaseUrl(): String? =
         AiVendor.OPENROUTER -> "https://openrouter.ai/api"
         AiVendor.AZURE_OPENAI, AiVendor.OLLAMA, AiVendor.GENERIC_REST -> null
     }
+
+/**
+ * Whether this vendor's `generateContent`-style vision response can supply a
+ * real per-pixel garment segmentation mask alongside its analysis — not "can
+ * this vendor analyze an image" (every vendor bound to
+ * [com.wardrobe.app.core.ai.gateway.VisionPromptAdapter] can), but
+ * specifically whether its structured JSON output includes a base64-encoded
+ * probability-map mask tied to a bounding box, the way `GENERIC_REST`'s
+ * [com.wardrobe.app.core.ai.gateway.ImageTaskAdapter] returns a ready-made
+ * image. Verified (M25 real-device follow-up, 2026-08) against Gemini's own
+ * documented segmentation output format — `box_2d` + a base64 PNG `mask`
+ * field, confirmed via Google's own developer documentation and independent
+ * real-world usage writeups, not assumed. `true` only for [AiVendor.GEMINI]:
+ * no other vendor bound to `VisionPromptAdapter` (OpenAI, Claude, …)
+ * documents an equivalent structured mask field in its vision response.
+ * Extending this to a vendor that later gains an equivalent capability is a
+ * one-line change here, not a new capability system — this deliberately
+ * stays a plain vendor check rather than a richer capability model until a
+ * second vendor actually needs one.
+ */
+fun AiVendor.supportsCloudGarmentSegmentation(): Boolean = this == AiVendor.GEMINI

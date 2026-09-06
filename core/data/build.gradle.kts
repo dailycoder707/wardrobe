@@ -70,4 +70,10 @@ dependencies {
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.mockk)
     testImplementation(libs.turbine)
+    // M25 Gemini-segmentation follow-up: GarmentExtractionEngineRouterTest's
+    // Gemini success path now exercises real Bitmap/Base64 compositing
+    // (`compositeGeminiSegmentationCutout`, core:image) end-to-end rather
+    // than mocking it away, so this module needs the same Robolectric shadow
+    // environment core:ai/core:image already use for real Bitmap tests.
+    testImplementation(libs.robolectric)
 }

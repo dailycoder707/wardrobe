@@ -1,7 +1,9 @@
 package com.wardrobe.app.core.model.ai
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
@@ -27,5 +29,20 @@ class AiVendorTest {
         assertNull(AiVendor.AZURE_OPENAI.defaultBaseUrl())
         assertNull(AiVendor.OLLAMA.defaultBaseUrl())
         assertNull(AiVendor.GENERIC_REST.defaultBaseUrl())
+    }
+
+    /** M25 Gemini-segmentation follow-up — verified (not assumed) against
+     * Gemini's own documented `box_2d` + base64 PNG `mask` structured
+     * segmentation output; every other `VisionPromptAdapter` vendor has no
+     * documented equivalent. */
+    @Test
+    fun `only Gemini is known to support cloud garment segmentation`() {
+        assertTrue(AiVendor.GEMINI.supportsCloudGarmentSegmentation())
+        assertFalse(AiVendor.OPENAI.supportsCloudGarmentSegmentation())
+        assertFalse(AiVendor.AZURE_OPENAI.supportsCloudGarmentSegmentation())
+        assertFalse(AiVendor.CLAUDE.supportsCloudGarmentSegmentation())
+        assertFalse(AiVendor.OPENROUTER.supportsCloudGarmentSegmentation())
+        assertFalse(AiVendor.OLLAMA.supportsCloudGarmentSegmentation())
+        assertFalse(AiVendor.GENERIC_REST.supportsCloudGarmentSegmentation())
     }
 }

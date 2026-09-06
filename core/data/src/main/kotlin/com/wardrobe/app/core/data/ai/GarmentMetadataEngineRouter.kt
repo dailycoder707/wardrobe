@@ -10,16 +10,51 @@ import com.wardrobe.app.core.ai.gateway.VisionPromptResult
 import com.wardrobe.app.core.ai.prompt.PromptVersions
 import com.wardrobe.app.core.ai.security.ApiKeyStore
 import com.wardrobe.app.core.datastore.preferences.AiProviderPreferencesDataStore
+import com.wardrobe.app.core.domain.repository.CategoryRepository
+import com.wardrobe.app.core.domain.repository.ColorRepository
+import com.wardrobe.app.core.domain.repository.FabricRepository
+import com.wardrobe.app.core.domain.repository.MaterialRepository
+import com.wardrobe.app.core.domain.repository.OccasionRepository
+import com.wardrobe.app.core.domain.repository.TagRepository
 import com.wardrobe.app.core.image.metadata.GarmentMetadataEngine
 import com.wardrobe.app.core.image.metadata.OnDeviceMetadataEngine
 import com.wardrobe.app.core.model.ai.AiCapability
 import com.wardrobe.app.core.model.ai.AiProviderConfig
+import com.wardrobe.app.core.model.ai.AiResultSource
 import com.wardrobe.app.core.model.ai.MetadataField
 import com.wardrobe.app.core.model.ai.MetadataSuggestion
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.first
 import javax.inject.Inject
 import javax.inject.Singleton
+
+/** Bundles the six reference-data repositories the cloud metadata prompt
+ * needs (M25 real-device finding — see [MetadataReferenceOptions]'s own
+ * KDoc) purely to keep [GarmentMetadataEngineRouter]'s constructor under
+ * this project's `LongParameterList` threshold, the same "bag of
+ * repositories" pattern `feature:capture`'s `ReviewTaxonomyRepositories`
+ * already uses. Deliberately excludes `BrandRepository` — brand is never
+ * constrained to already-known values. */
+class MetadataReferenceRepositories
+    @Inject
+    constructor(
+        val categoryRepository: CategoryRepository,
+        val colorRepository: ColorRepository,
+        val materialRepository: MaterialRepository,
+        val fabricRepository: FabricRepository,
+        val occasionRepository: OccasionRepository,
+        val tagRepository: TagRepository,
+    )
+
+private suspend fun MetadataReferenceRepositories.fetchOptions(): MetadataReferenceOptions =
+    MetadataReferenceOptions(
+        categoryNames = categoryRepository.observeAll().first().map { it.name },
+        colorNames = colorRepository.observeAll().first().map { it.name },
+        materialNames = materialRepository.observeAll().first().map { it.name },
+        fabricNames = fabricRepository.observeAll().first().map { it.name },
+        occasionNames = occasionRepository.observeAll().first().map { it.name },
+        tagNames = tagRepository.observeAll().first().map { it.name },
+    )
 
 private const val METADATA_DIAGNOSTICS_TAG = "MetadataPipeline"
 
@@ -50,6 +85,7 @@ class GarmentMetadataEngineRouter
         private val aiGateway: AiGateway,
         private val preferencesDataStore: AiProviderPreferencesDataStore,
         private val apiKeyStore: ApiKeyStore,
+        private val referenceRepositories: MetadataReferenceRepositories,
         @ApplicationContext private val context: Context,
     ) : GarmentMetadataEngine {
         override suspend fun generateMetadata(cutout: Bitmap): List<MetadataSuggestion> {
@@ -61,11 +97,12 @@ class GarmentMetadataEngineRouter
             }
 
             val dispatchContext = AiDispatchContext(AiCapability.GARMENT_METADATA, config, apiKey)
+            val referenceOptions = referenceRepositories.fetchOptions()
             val result =
                 aiGateway.runVisionPrompt(
                     dispatchContext,
-                    PromptVersions.METADATA_V2,
-                    buildMetadataSystemPrompt(),
+                    PromptVersions.METADATA_V3,
+                    buildMetadataSystemPrompt(referenceOptions),
                     METADATA_USER_PROMPT,
                     cutout,
                     expectJsonResponse = true,
@@ -79,7 +116,12 @@ class GarmentMetadataEngineRouter
 
                 is VisionPromptResult.Failure -> {
                     logDiagnostics(cloudFailureDiagnostics(config, result.reason))
-                    onDeviceEngine.generateMetadata(cutout)
+                    // The on-device result is still the right thing to
+                    // return — cloud degrades a capability, it never breaks
+                    // one — but it must not masquerade as the user's
+                    // configured choice. Tagging it here is what lets the
+                    // review screen say "Cloud unavailable, used On-Device".
+                    onDeviceEngine.generateMetadata(cutout).map { it.asCloudFallback(result.reason) }
                 }
             }
         }
@@ -88,6 +130,20 @@ class GarmentMetadataEngineRouter
             if (isDebugBuild(context)) Log.d(METADATA_DIAGNOSTICS_TAG, message)
         }
     }
+
+/** Marks an on-device suggestion as the *consequence* of a failed cloud
+ * attempt rather than a plain on-device run. Only the provenance changes —
+ * the suggested value, its confidence and its field are exactly what the
+ * on-device engine produced, so nothing about the suggestion itself is
+ * fabricated or reinterpreted. */
+private fun MetadataSuggestion.asCloudFallback(reason: String): MetadataSuggestion =
+    copy(
+        provenance =
+            provenance.copy(
+                requestedSource = AiResultSource.CLOUD,
+                fallbackReason = reason,
+            ),
+    )
 
 private fun cloudSuccessDiagnostics(
     config: AiProviderConfig,

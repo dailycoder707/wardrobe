@@ -41,6 +41,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.wardrobe.app.core.model.ai.AiFallbackReasons
 import com.wardrobe.app.core.model.ai.MetadataField
 import com.wardrobe.app.core.model.garment.ImageRetryStage
 import com.wardrobe.app.core.ui.components.CategoryPicker
@@ -157,13 +158,7 @@ private fun GarmentReviewMetadataForm(
         verticalArrangement = Arrangement.spacedBy(20.dp),
     ) {
         GarmentReviewImageViewer(variants = state.variants, comparisonStages = state.comparisonStages)
-        if (state.usedOriginalFallback) {
-            Text(
-                "Background removal wasn't able to process this photo — using the original.",
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.error,
-            )
-        }
+        ExtractionFallbackBanners(state)
 
         AiStatusCard(state.aiProcessingSummary)
         WhatAiChangedSummary(state)
@@ -203,6 +198,56 @@ private fun GarmentReviewMetadataForm(
         }
     }
 }
+
+/** Split out of [GarmentReviewMetadataForm] purely to stay under detekt's
+ * `LongMethod` threshold (M25) — the two honest "this stage silently
+ * degraded" banners: extraction failing entirely ([GarmentReviewMetadataUiState.usedOriginalFallback])
+ * vs. extraction succeeding but not via the configured cloud provider
+ * ([GarmentReviewMetadataUiState.extractionFallbackReason]) are distinct
+ * situations, never conflated. */
+@Composable
+private fun ExtractionFallbackBanners(state: GarmentReviewMetadataUiState) {
+    if (state.usedOriginalFallback) {
+        Text(
+            "Background removal wasn't able to process this photo — using the original.",
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.error,
+        )
+    }
+    state.extractionFallbackReason?.let { reason ->
+        Text(
+            extractionFallbackMessage(reason),
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.error,
+        )
+    }
+}
+
+/** Three fallback reasons read as three genuinely different situations, never
+ * conflated into one generic "something went wrong":
+ * [AiFallbackReasons.IMAGE_TASK_ADAPTER_UNAVAILABLE] is a fixed fact about
+ * the configured vendor (no [com.wardrobe.app.core.ai.gateway.ImageTaskAdapter]
+ * bound for it, e.g. OpenAI/Claude — Gemini no longer falls in this bucket,
+ * M25 Gemini-segmentation follow-up);
+ * [AiFallbackReasons.GEMINI_SEGMENTATION_UNUSABLE] means Gemini was actually
+ * asked and answered, but its answer had no usable garment mask; anything
+ * else is a transient/technical reason (a timeout, an auth error, a
+ * provider's own error text) already worded for direct display by
+ * `GeminiErrorMapping`/the router's other failure paths. */
+internal fun extractionFallbackMessage(reason: String): String =
+    when (reason) {
+        AiFallbackReasons.IMAGE_TASK_ADAPTER_UNAVAILABLE -> {
+            "Cloud AI doesn't support garment cutout generation for this provider — used On-Device AI instead."
+        }
+
+        AiFallbackReasons.GEMINI_SEGMENTATION_UNUSABLE -> {
+            "Gemini garment analysis succeeded, but it couldn't produce a usable cutout — used On-Device AI instead."
+        }
+
+        else -> {
+            "Cloud AI unavailable for garment extraction — used On-Device AI instead. Reason: $reason"
+        }
+    }
 
 @Composable
 private fun GarmentReviewDuplicateBanners(state: GarmentReviewMetadataUiState) {

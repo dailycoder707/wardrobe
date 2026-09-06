@@ -18,8 +18,24 @@ object PromptVersions {
      * cache rows via the existing cache-key/prompt-version design, not a
      * relabeling of the same prompt). */
     const val METADATA_V2 = "metadata-v2"
+
+    /** M25 real-device finding: the prompt now spells out FIT/LENGTH/
+     * SLEEVE_LENGTH/SEASON/DRESS_CODE enum vocabulary (previously only
+     * NECKLINE/GENDER/WATERPROOF_LEVEL were covered) and injects this
+     * wardrobe's actual CATEGORY/COLOR/MATERIAL/FABRIC/OCCASION/STYLE_TAG
+     * reference-data option lists — a real prompt content change. */
+    const val METADATA_V3 = "metadata-v3"
     const val STYLING_V1 = "styling-v1"
     const val EXTRACTION_V1 = "extraction-v1"
+
+    /** M25 real-device follow-up: Gemini's `generateContent` structured JSON
+     * output can include a real per-pixel segmentation mask (`box_2d` + a
+     * base64 PNG probability map), verified against Google's own
+     * documentation — a genuinely different wire shape from [EXTRACTION_V1],
+     * which is [com.wardrobe.app.core.ai.gateway.ImageTaskAdapter]'s
+     * image-in/image-out multipart contract. Its own prompt version keeps
+     * the two cache namespaces from ever colliding for the same image. */
+    const val EXTRACTION_GEMINI_SEGMENTATION_V1 = "extraction-gemini-segmentation-v1"
     const val RECONSTRUCTION_V1 = "reconstruction-v1"
     const val TRYON_V1 = "tryon-v1"
 }

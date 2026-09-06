@@ -54,6 +54,7 @@ class GarmentImagePipelineTest {
                 ExtractionResult.Success(
                     Bitmap.createBitmap(sourcePhoto.width, sourcePhoto.height, Bitmap.Config.ARGB_8888),
                     confidence = 0.9f,
+                    provenance = AiResultProvenance(AiResultSource.ON_DEVICE, null, null, null, Instant.EPOCH),
                 )
             } else {
                 ExtractionResult.Failure("fake_failure")

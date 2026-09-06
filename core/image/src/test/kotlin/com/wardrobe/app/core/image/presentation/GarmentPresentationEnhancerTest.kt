@@ -7,7 +7,6 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
-import kotlin.math.abs
 
 private const val CANVAS_SIZE = 60
 private const val SQUARE_START = 20
@@ -42,47 +41,49 @@ class GarmentPresentationEnhancerTest {
         assertEquals(Color.WHITE, whiteBg.getPixel(whiteBg.width - 1, whiteBg.height - 1))
     }
 
+    /** M25 real-device finding: this used to assert the opposite — that
+     * gray-world balancing narrowed the R/G gap. That was the bug: gray-world
+     * over an isolated garment cutout reads the garment's own real color as
+     * a "cast" and pulls it toward gray on every save. A real red garment
+     * must stay recognizably red, not measurably drift toward the other
+     * channels' level, however mild the drift. */
     @Test
-    fun `enhance's white balance narrows a color cast between channels`() {
+    fun `enhance preserves a real garment color's own channel gap, never narrows it toward gray`() {
         val bitmap = Bitmap.createBitmap(CANVAS_SIZE, CANVAS_SIZE, Bitmap.Config.ARGB_8888)
-        // A strong red cast (a garment that's actually gray but the photo has a
-        // warm color cast) — gray-world balancing should narrow the gap between
-        // the red channel and the others.
         fillRect(bitmap, SQUARE_START, SQUARE_START, SQUARE_END, SQUARE_END, Color.rgb(220, 120, 120))
+        val gapBefore = 220 - 120
 
-        val before = channelMeans(bitmap, SQUARE_START, SQUARE_END)
         val result = enhancer.enhance(bitmap)
-        val after = channelMeans(result.enhancedCutout, 0, result.enhancedCutout.width)
 
-        val gapBefore = abs(before.first - before.second)
-        val gapAfter = abs(after.first - after.second)
+        // Sampled from the interior, not the crop/deskew-affected boundary —
+        // deep inside a uniformly-colored square, resampling from identical
+        // neighbors can't change the color, so this isolates the color
+        // transform itself from unrelated geometric edge effects.
+        val cutout = result.enhancedCutout
+        val pixel = cutout.getPixel(cutout.width / 2, cutout.height / 2)
+        val gapAfter = Color.red(pixel) - Color.green(pixel)
         assertTrue(
-            "expected the R/G channel gap to narrow after white balance (before=$gapBefore, after=$gapAfter)",
-            gapAfter < gapBefore,
+            "expected the garment's own R/G gap to survive enhancement, not narrow toward gray " +
+                "(before=$gapBefore, after=$gapAfter)",
+            gapAfter >= gapBefore - CONTRAST_ROUNDING_TOLERANCE,
         )
     }
+
+    @Test
+    fun `enhance never clips a bright, saturated garment color to white`() {
+        val bitmap = Bitmap.createBitmap(CANVAS_SIZE, CANVAS_SIZE, Bitmap.Config.ARGB_8888)
+        // A bright, saturated color a naive gain-then-pivot bug would clip.
+        fillRect(bitmap, SQUARE_START, SQUARE_START, SQUARE_END, SQUARE_END, Color.rgb(250, 40, 40))
+
+        val result = enhancer.enhance(bitmap)
+
+        val pixel = result.enhancedCutout.getPixel(result.enhancedCutout.width / 2, result.enhancedCutout.height / 2)
+        assertTrue("expected green to stay low, not clip toward white", Color.green(pixel) < 80)
+        assertTrue("expected blue to stay low, not clip toward white", Color.blue(pixel) < 80)
+    }
 }
 
-private fun channelMeans(
-    bitmap: Bitmap,
-    start: Int,
-    end: Int,
-): Pair<Double, Double> {
-    var sumR = 0L
-    var sumG = 0L
-    var count = 0
-    for (y in start until end) {
-        for (x in start until end) {
-            if (x >= bitmap.width || y >= bitmap.height) continue
-            val pixel = bitmap.getPixel(x, y)
-            if (Color.alpha(pixel) == 0) continue
-            sumR += Color.red(pixel)
-            sumG += Color.green(pixel)
-            count++
-        }
-    }
-    return if (count == 0) 0.0 to 0.0 else (sumR.toDouble() / count) to (sumG.toDouble() / count)
-}
+private const val CONTRAST_ROUNDING_TOLERANCE = 1.0
 
 private fun fillRect(
     bitmap: Bitmap,

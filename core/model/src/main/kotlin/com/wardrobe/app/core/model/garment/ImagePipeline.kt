@@ -1,5 +1,6 @@
 package com.wardrobe.app.core.model.garment
 
+import com.wardrobe.app.core.model.ai.AiResultProvenance
 import com.wardrobe.app.core.model.ai.AiResultSource
 import com.wardrobe.app.core.model.ai.MetadataSuggestion
 
@@ -132,7 +133,18 @@ data class AiProcessingSummary(
     val averageConfidence: Float?,
     val processingMs: Long,
     val cacheHit: Boolean,
-)
+    /** What Settings asked for, when that differs from [source] — a cloud
+     * capability whose dispatch failed still produces a usable on-device
+     * result, and the review screen has to be able to say so rather than
+     * silently presenting it as the user's configured choice. Defaults to
+     * [source] (no fallback) so existing call sites are unchanged. */
+    val requestedSource: AiResultSource = source,
+    /** The safe, human-readable reason the cloud attempt failed — `null`
+     * whenever no fallback happened. Never carries credentials. */
+    val fallbackReason: String? = null,
+) {
+    val fallbackUsed: Boolean get() = requestedSource != source
+}
 
 /** One not-yet-persisted image file produced by the pipeline — the pre-commit
  * counterpart of [ImageMetadata], which is what this becomes once
@@ -172,4 +184,11 @@ data class StagedImage(
     val metadataSuggestions: List<MetadataSuggestion>,
     val comparisonStages: List<ComparisonStage> = emptyList(),
     val aiProcessingSummary: AiProcessingSummary? = null,
+    /** M25 real-device finding — `null` whenever extraction failed entirely
+     * (nothing to report provenance for) or on a build predating this
+     * field. When present and `fallbackUsed`, a cloud-configured
+     * `GARMENT_EXTRACTION` dispatch degraded to on-device for this image;
+     * the review screen uses this to say so rather than presenting the
+     * on-device cutout as the user's configured cloud choice. */
+    val extractionProvenance: AiResultProvenance? = null,
 )

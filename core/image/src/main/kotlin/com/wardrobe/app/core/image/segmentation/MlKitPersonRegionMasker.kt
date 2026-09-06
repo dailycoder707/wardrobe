@@ -25,8 +25,21 @@ private const val MIN_LANDMARK_LIKELIHOOD = 0.5f
  * camera-calibrated reference scale. These fractions are this project's own
  * editorial choice (a real, roughly head/arm-proportioned heuristic), not an
  * ML Kit or anatomical constant — disclosed as approximate in
- * [PersonRegionMasker]'s KDoc. */
-private const val HEAD_RADIUS_SHOULDER_FRACTION = 0.55f
+ * [PersonRegionMasker]'s KDoc.
+ *
+ * M25 real-device finding: [HEAD_RADIUS_SHOULDER_FRACTION] was `0.55f`,
+ * which made the head punch-out's *radius* roughly as large as a whole head
+ * *width* — an adult head is closer to a third of shoulder width, not over
+ * half of it. Centered on the nose (below the eye line, already low on the
+ * face), that oversized circle routinely ate into the collar, neckline, and
+ * upper chest of the actual garment — the "garment regions missing" defect.
+ * `0.30f` keeps full head+hair coverage without reaching the chest for
+ * typical adult proportions; [HEAD_CENTER_UPWARD_FRACTION] additionally
+ * lifts the circle's center off the nose toward the head's true vertical
+ * middle, since nothing here has a real "top of head" landmark to anchor to
+ * directly. */
+private const val HEAD_RADIUS_SHOULDER_FRACTION = 0.30f
+private const val HEAD_CENTER_UPWARD_FRACTION = 0.5f
 private const val LIMB_WIDTH_SHOULDER_FRACTION = 0.35f
 private const val HAND_ONLY_RADIUS_SHOULDER_FRACTION = 0.22f
 private const val HAND_EXTENSION_FRACTION = 0.35f
@@ -62,7 +75,7 @@ class MlKitPersonRegionMasker
             }
     }
 
-private sealed interface PunchOutRegion {
+internal sealed interface PunchOutRegion {
     data class Circle(
         val cx: Float,
         val cy: Float,
@@ -116,10 +129,22 @@ private fun headRegion(
             ?: pose.confidentLandmark(PoseLandmark.LEFT_EYE)
             ?: pose.confidentLandmark(PoseLandmark.RIGHT_EYE)
             ?: return null
+    return computeHeadCircle(head.position.x, head.position.y, shoulderWidth)
+}
+
+/** Pure geometry, split out from [headRegion] so the corrected sizing/
+ * placement (M25 real-device finding, see [HEAD_RADIUS_SHOULDER_FRACTION]'s
+ * KDoc) is directly testable without constructing ML Kit's [Pose]. */
+internal fun computeHeadCircle(
+    headLandmarkX: Float,
+    headLandmarkY: Float,
+    shoulderWidth: Float,
+): PunchOutRegion.Circle {
+    val radius = shoulderWidth * HEAD_RADIUS_SHOULDER_FRACTION
     return PunchOutRegion.Circle(
-        cx = head.position.x,
-        cy = head.position.y,
-        radius = shoulderWidth * HEAD_RADIUS_SHOULDER_FRACTION,
+        cx = headLandmarkX,
+        cy = headLandmarkY - radius * HEAD_CENTER_UPWARD_FRACTION,
+        radius = radius,
     )
 }
 

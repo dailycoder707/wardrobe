@@ -41,6 +41,20 @@ internal fun AiStatusCard(summary: AiProcessingSummary?) {
                 Text("AI Processing Complete", style = MaterialTheme.typography.titleSmall)
             }
             Text("Provider: ${summary.provider ?: "On-Device"}", style = MaterialTheme.typography.bodySmall)
+            // Only rendered when a cloud attempt genuinely happened and
+            // failed — a deliberate On-Device selection never reports a
+            // fallback it didn't make. The reason is the provider's own
+            // text, already stripped of credentials by the adapter.
+            if (summary.fallbackUsed) {
+                Text(
+                    "Cloud AI unavailable — used On-Device AI instead.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                )
+                summary.fallbackReason?.let { reason ->
+                    Text("Reason: $reason", style = MaterialTheme.typography.bodySmall)
+                }
+            }
             summary.averageConfidence?.let {
                 val percent = (it * CONFIDENCE_PERCENT_MULTIPLIER).toInt()
                 Text("Confidence: $percent%", style = MaterialTheme.typography.bodySmall)

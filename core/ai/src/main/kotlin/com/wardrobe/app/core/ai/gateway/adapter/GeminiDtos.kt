@@ -28,6 +28,23 @@ data class GeminiPart(
     val text: String? = null,
 )
 
+/** Gemini's `GET {baseUrl}/v1beta/models` response. Consulted only after a
+ * `generateContent` call has already failed with "model not found", to turn
+ * that dead end into a list of names the user's own key genuinely can call
+ * — the app can't know a key's model entitlements any other way, and
+ * guessing a replacement model would be exactly the fabrication this
+ * project's rules forbid. */
+@Serializable
+data class GeminiModelsResponse(
+    val models: List<GeminiModel> = emptyList(),
+)
+
+@Serializable
+data class GeminiModel(
+    val name: String? = null,
+    @SerialName("supportedGenerationMethods") val supportedGenerationMethods: List<String> = emptyList(),
+)
+
 @Serializable
 data class GeminiUsageMetadata(
     @SerialName("promptTokenCount") val promptTokenCount: Int? = null,

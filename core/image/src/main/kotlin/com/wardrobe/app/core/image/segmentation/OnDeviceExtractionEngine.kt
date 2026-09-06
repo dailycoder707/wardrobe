@@ -1,6 +1,9 @@
 package com.wardrobe.app.core.image.segmentation
 
 import android.graphics.Bitmap
+import com.wardrobe.app.core.model.ai.AiResultProvenance
+import com.wardrobe.app.core.model.ai.AiResultSource
+import java.time.Instant
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -23,7 +26,18 @@ class OnDeviceExtractionEngine
             when (val cutout = backgroundRemover.removeBackground(sourcePhoto)) {
                 is CutoutResult.Success -> {
                     val masked = personRegionMasker.mask(cutout.bitmap, sourcePhoto)
-                    ExtractionResult.Success(transparentCutout = masked, confidence = cutout.confidence)
+                    // M25 real-device finding: neither the raw ML Kit mask
+                    // nor the pose-landmark punch-out above is followed by
+                    // any cleanup for disconnected fragments (a severed
+                    // sleeve tip, a stray hair strand) — see
+                    // CutoutFragmentCleanup.kt's own KDoc for the full
+                    // root-cause trace.
+                    val cleaned = keepLargestOpaqueComponent(masked)
+                    ExtractionResult.Success(
+                        transparentCutout = cleaned,
+                        confidence = cutout.confidence,
+                        provenance = onDeviceProvenance(),
+                    )
                 }
 
                 is CutoutResult.Failure -> {
@@ -31,3 +45,12 @@ class OnDeviceExtractionEngine
                 }
             }
     }
+
+private fun onDeviceProvenance(): AiResultProvenance =
+    AiResultProvenance(
+        source = AiResultSource.ON_DEVICE,
+        provider = null,
+        model = null,
+        promptVersion = null,
+        generatedAt = Instant.now(),
+    )

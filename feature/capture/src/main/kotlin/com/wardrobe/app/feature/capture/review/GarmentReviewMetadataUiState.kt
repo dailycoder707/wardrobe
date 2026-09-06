@@ -82,6 +82,13 @@ data class GarmentReviewMetadataUiState(
     val needsRestage: Boolean = false,
     val previewImagePath: String? = null,
     val usedOriginalFallback: Boolean = false,
+    /** M25 real-device finding — non-null only when `GARMENT_EXTRACTION` was
+     * genuinely configured for Cloud and that specific dispatch failed
+     * (never set for a deliberate On-Device choice). Distinct from
+     * [usedOriginalFallback], which means extraction failed *entirely*;
+     * this means extraction succeeded, just not via the configured
+     * provider. */
+    val extractionFallbackReason: String? = null,
     val checksumDuplicateGarmentName: String? = null,
     val potentialDuplicates: List<Garment> = emptyList(),
     val form: GarmentMetadataFormState = GarmentMetadataFormState(),

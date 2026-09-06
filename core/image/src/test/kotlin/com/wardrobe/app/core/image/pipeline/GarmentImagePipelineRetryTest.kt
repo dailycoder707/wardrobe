@@ -92,11 +92,22 @@ class GarmentImagePipelineRetryTest {
 
     private fun fakeCutout() = Bitmap.createBitmap(800, 800, Bitmap.Config.ARGB_8888)
 
+    private fun fakeExtractionProvenance() =
+        AiResultProvenance(AiResultSource.ON_DEVICE, null, null, null, Instant.EPOCH)
+
     @Test
     fun `retryMetadata re-runs only metadata generation from the existing cutout`() =
         runTest {
             val extractionEngine =
-                SequencedExtractionEngine(mutableListOf(ExtractionResult.Success(fakeCutout(), confidence = 0.9f)))
+                SequencedExtractionEngine(
+                    mutableListOf(
+                        ExtractionResult.Success(
+                            fakeCutout(),
+                            confidence = 0.9f,
+                            provenance = fakeExtractionProvenance(),
+                        ),
+                    ),
+                )
             val metadataEngine =
                 SequencedMetadataEngine(mutableListOf(listOf(suggestion("Gray")), listOf(suggestion("Blue"))))
             val pipeline =
@@ -123,7 +134,15 @@ class GarmentImagePipelineRetryTest {
     fun `retryEnhancement re-runs enhancement onward without re-calling extraction`() =
         runTest {
             val extractionEngine =
-                SequencedExtractionEngine(mutableListOf(ExtractionResult.Success(fakeCutout(), confidence = 0.9f)))
+                SequencedExtractionEngine(
+                    mutableListOf(
+                        ExtractionResult.Success(
+                            fakeCutout(),
+                            confidence = 0.9f,
+                            provenance = fakeExtractionProvenance(),
+                        ),
+                    ),
+                )
             val metadataEngine =
                 SequencedMetadataEngine(mutableListOf(listOf(suggestion("Gray")), listOf(suggestion("Blue"))))
             val pipeline =
@@ -153,8 +172,16 @@ class GarmentImagePipelineRetryTest {
             val extractionEngine =
                 SequencedExtractionEngine(
                     mutableListOf(
-                        ExtractionResult.Success(fakeCutout(), confidence = 0.5f),
-                        ExtractionResult.Success(fakeCutout(), confidence = 0.95f),
+                        ExtractionResult.Success(
+                            fakeCutout(),
+                            confidence = 0.5f,
+                            provenance = fakeExtractionProvenance(),
+                        ),
+                        ExtractionResult.Success(
+                            fakeCutout(),
+                            confidence = 0.95f,
+                            provenance = fakeExtractionProvenance(),
+                        ),
                     ),
                 )
             val metadataEngine =

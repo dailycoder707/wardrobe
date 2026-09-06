@@ -65,6 +65,31 @@ class GeminiQueryParamAuthInterceptorTest {
         assertNull(recorded.getHeader(GEMINI_API_KEY_HEADER))
     }
 
+    /** Appending the key means rebuilding the URL, and Gemini's route ends in
+     * a literal `:generateContent` — a rebuild that percent-encoded that
+     * colon would be answered by Google with a bare `404` that looks
+     * identical to a wrong Base URL. The rewrite must touch the query string
+     * and nothing else. */
+    @Test
+    fun `the request path is left byte-for-byte unchanged by the rewrite`() {
+        server.enqueue(MockResponse().setBody("{}"))
+        val request =
+            Request
+                .Builder()
+                .url(server.url("/v1beta/models/gemini-2.5-flash:generateContent"))
+                .header(GEMINI_API_KEY_HEADER, "real-secret-key")
+                .build()
+
+        clientWithInterceptor().newCall(request).execute().close()
+
+        val recorded = server.takeRequest()
+        assertEquals("/v1beta/models/gemini-2.5-flash:generateContent", recorded.requestUrl?.encodedPath)
+        assertFalse(
+            "a percent-encoded colon does not match Google's route",
+            recorded.requestUrl?.encodedPath?.contains("%3A") == true,
+        )
+    }
+
     @Test
     fun `a request with no Gemini auth header passes through completely unchanged`() {
         server.enqueue(MockResponse().setBody("{}"))

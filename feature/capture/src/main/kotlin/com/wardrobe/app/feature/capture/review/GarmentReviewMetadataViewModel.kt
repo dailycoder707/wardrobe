@@ -414,6 +414,7 @@ private fun buildUiState(
             staged?.variants?.firstOrNull { it.type == ImageType.CUTOUT }?.filePath
                 ?: staged?.variants?.firstOrNull { it.type == ImageType.ORIGINAL }?.filePath,
         usedOriginalFallback = staged != null && staged.backgroundRemovalStatus != BackgroundRemovalStatus.SUCCEEDED,
+        extractionFallbackReason = staged?.extractionProvenance?.takeIf { it.fallbackUsed }?.fallbackReason,
         checksumDuplicateGarmentName = load.checksumDuplicateGarmentName,
         potentialDuplicates = saving.potentialDuplicates,
         form = form,
