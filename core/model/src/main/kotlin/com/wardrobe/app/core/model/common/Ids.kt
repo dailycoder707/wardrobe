@@ -28,6 +28,11 @@ value class MaterialId(
 )
 
 @JvmInline
+value class FabricId(
+    val value: Long,
+)
+
+@JvmInline
 value class BrandId(
     val value: Long,
 )

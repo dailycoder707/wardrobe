@@ -46,6 +46,18 @@ dependencies {
     // what's still unverified about that choice.
     implementation(libs.mlkit.subject.segmentation)
 
+    // Person-region masking (Add-to-Wardrobe v2) — the same bundled-model Pose
+    // Detection dependency `core:tryon`'s `MlKitBodyAnchorEstimator` already
+    // uses, added here too since `PersonRegionMasker` needs its own landmark
+    // detection pass on the pre-extraction photo.
+    implementation(libs.mlkit.pose.detection)
+
+    // On-device metadata (Add-to-Wardrobe v2) — `OnDeviceMetadataEngine`'s
+    // OCR-based brand guess. Lives alongside `GarmentExtractionEngine`/
+    // `GarmentReconstructionEngine` in this module, not `core:ai`, so
+    // `GarmentImagePipeline` can call all three on-device engines directly.
+    implementation(libs.mlkit.text.recognition)
+
     testImplementation(libs.junit4)
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.robolectric)

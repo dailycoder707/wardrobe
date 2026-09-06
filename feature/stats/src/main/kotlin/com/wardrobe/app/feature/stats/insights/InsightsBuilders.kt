@@ -11,6 +11,7 @@ import com.wardrobe.app.core.model.stats.CostPerWearEntry
 import com.wardrobe.app.core.model.stats.GarmentCombinationEntry
 import com.wardrobe.app.core.model.stats.GarmentVersatilityEntry
 import com.wardrobe.app.core.model.stats.UsageStats
+import com.wardrobe.app.core.model.stats.WardrobeMixDistribution
 import com.wardrobe.app.core.model.stats.WearHeatmapDay
 import com.wardrobe.app.core.model.wear.WearEvent
 import com.wardrobe.app.feature.stats.common.HeatmapBucketCache
@@ -23,11 +24,14 @@ import java.time.LocalDate
 
 private const val TOP_N = 6
 private const val RECENT_ACTIVITY_LIMIT = 10
+private const val DISTRIBUTION_TOP_N = 8
 
-fun buildCharts(
+internal fun buildCharts(
     usage: UsageStats,
     heatmap: List<WearHeatmapDay>,
     heatmapRange: DateRange,
+    distribution: WardrobeMixDistribution,
+    ref: ReferenceData,
 ): InsightsChartsUiState =
     recordTiming("insightsCharts") {
         val buckets = HeatmapBucketCache.getOrCompute(heatmap) { computeMonthlyWeeklyBuckets(heatmap) }
@@ -45,6 +49,28 @@ fun buildCharts(
             heatmapCells = heatmap.map { HeatmapCellUiModel(it.date, it.wearCount) },
             heatmapRangeStart = heatmapRange.start,
             heatmapRangeEnd = heatmapRange.end,
+            materialDistribution =
+                distribution.materials
+                    .sortedByDescending { it.garmentCount }
+                    .take(DISTRIBUTION_TOP_N)
+                    .mapNotNull { entry ->
+                        ref.materialsById[entry.materialId]?.let { BarChartEntry(it.name, entry.garmentCount) }
+                    },
+            fabricDistribution =
+                distribution.fabrics
+                    .sortedByDescending { it.garmentCount }
+                    .take(DISTRIBUTION_TOP_N)
+                    .mapNotNull { entry ->
+                        ref.fabricsById[entry.fabricId]?.let { BarChartEntry(it.name, entry.garmentCount) }
+                    },
+            occasionCoverage =
+                distribution.occasions
+                    .sortedByDescending { it.garmentCount }
+                    .take(DISTRIBUTION_TOP_N)
+                    .mapNotNull { entry ->
+                        ref.occasionsById[entry.occasionId]?.let { BarChartEntry(it.name, entry.garmentCount) }
+                    },
+            garmentsWithoutOccasionCount = distribution.garmentsWithoutOccasion,
         )
     }
 

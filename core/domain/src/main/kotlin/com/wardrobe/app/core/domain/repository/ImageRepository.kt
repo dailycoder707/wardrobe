@@ -2,6 +2,7 @@ package com.wardrobe.app.core.domain.repository
 
 import com.wardrobe.app.core.model.common.GarmentId
 import com.wardrobe.app.core.model.garment.ImageMetadata
+import com.wardrobe.app.core.model.garment.ImageRetryStage
 import com.wardrobe.app.core.model.garment.NormalizedRect
 import com.wardrobe.app.core.model.garment.ProcessingStage
 import com.wardrobe.app.core.model.garment.QualityReport
@@ -77,4 +78,19 @@ interface ImageRepository {
      * already removes the `image_metadata` rows when the garment row is
      * deleted — this only handles the files, which nothing else will. */
     suspend fun deleteImagesForGarment(garmentId: GarmentId)
+
+    /**
+     * M10's one-tap retry action — redoes only the stages downstream of
+     * [stage], reusing the already-staged files `GarmentImagePipeline`'s
+     * first run wrote, so no recapture is needed. A plain suspend call (not
+     * a WorkManager job like [stageImage]): this is a foreground, review-
+     * screen-only action, not something that needs to survive an app
+     * restart the way the original import does. Throws if [stagingId] has
+     * no staged image to retry (the review screen is only ever shown once
+     * one exists).
+     */
+    suspend fun retryStage(
+        stagingId: String,
+        stage: ImageRetryStage,
+    ): StagedImage
 }

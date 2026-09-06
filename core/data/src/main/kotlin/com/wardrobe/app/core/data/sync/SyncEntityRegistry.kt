@@ -4,6 +4,7 @@ import com.wardrobe.app.core.data.sync.handlers.BodyProfileSyncHandler
 import com.wardrobe.app.core.data.sync.handlers.BrandSyncHandler
 import com.wardrobe.app.core.data.sync.handlers.CategorySyncHandler
 import com.wardrobe.app.core.data.sync.handlers.ColorSyncHandler
+import com.wardrobe.app.core.data.sync.handlers.FabricSyncHandler
 import com.wardrobe.app.core.data.sync.handlers.FeedbackSyncHandler
 import com.wardrobe.app.core.data.sync.handlers.GarmentMaskSyncHandler
 import com.wardrobe.app.core.data.sync.handlers.GarmentPlacementTemplateSyncHandler
@@ -23,6 +24,7 @@ import com.wardrobe.app.core.database.dao.BodyProfileDao
 import com.wardrobe.app.core.database.dao.BrandDao
 import com.wardrobe.app.core.database.dao.CategoryDao
 import com.wardrobe.app.core.database.dao.ColorDao
+import com.wardrobe.app.core.database.dao.FabricDao
 import com.wardrobe.app.core.database.dao.FeedbackDao
 import com.wardrobe.app.core.database.dao.GarmentDao
 import com.wardrobe.app.core.database.dao.GarmentMaskDao
@@ -55,6 +57,7 @@ class TaxonomyDaos
         val brandDao: BrandDao,
         val tagDao: TagDao,
         val occasionDao: OccasionDao,
+        val fabricDao: FabricDao,
     )
 
 /** The remaining garment-and-beyond DAOs a [SyncEntityHandler] needs — see
@@ -108,6 +111,7 @@ class SyncEntityRegistry
                 CategorySyncHandler(taxonomy.categoryDao),
                 ColorSyncHandler(taxonomy.colorDao),
                 MaterialSyncHandler(taxonomy.materialDao),
+                FabricSyncHandler(taxonomy.fabricDao),
                 BrandSyncHandler(taxonomy.brandDao),
                 TagSyncHandler(taxonomy.tagDao),
                 OccasionSyncHandler(taxonomy.occasionDao),
@@ -118,6 +122,8 @@ class SyncEntityRegistry
                     taxonomy.brandDao,
                     taxonomy.materialDao,
                     taxonomy.tagDao,
+                    taxonomy.fabricDao,
+                    taxonomy.occasionDao,
                 ),
                 OutfitSyncHandler(wardrobe.outfitDao, taxonomy.occasionDao, wardrobe.garmentDao, taxonomy.tagDao),
                 WearEventSyncHandler(
@@ -170,6 +176,7 @@ class SyncEntityRegistry
                 "categories" to { syncId: String -> taxonomy.categoryDao.getBySyncId(syncId)?.id },
                 "colors" to { syncId: String -> taxonomy.colorDao.getBySyncId(syncId)?.id },
                 "materials" to { syncId: String -> taxonomy.materialDao.getBySyncId(syncId)?.id },
+                "fabrics" to { syncId: String -> taxonomy.fabricDao.getBySyncId(syncId)?.id },
                 "brands" to { syncId: String -> taxonomy.brandDao.getBySyncId(syncId)?.id },
                 "tags" to { syncId: String -> taxonomy.tagDao.getBySyncId(syncId)?.id },
                 "occasions" to { syncId: String -> taxonomy.occasionDao.getBySyncId(syncId)?.id },

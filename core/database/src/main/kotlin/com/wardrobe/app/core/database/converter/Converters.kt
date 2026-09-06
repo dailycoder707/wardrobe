@@ -1,16 +1,23 @@
 package com.wardrobe.app.core.database.converter
 
 import androidx.room.TypeConverter
+import com.wardrobe.app.core.model.ai.AiCallOutcome
+import com.wardrobe.app.core.model.ai.AiCapability
+import com.wardrobe.app.core.model.ai.AiJobStatus
+import com.wardrobe.app.core.model.ai.AiResultSource
 import com.wardrobe.app.core.model.garment.CategoryLevel
 import com.wardrobe.app.core.model.garment.Condition
 import com.wardrobe.app.core.model.garment.DressCode
 import com.wardrobe.app.core.model.garment.Fit
+import com.wardrobe.app.core.model.garment.GarmentGender
 import com.wardrobe.app.core.model.garment.GarmentLength
 import com.wardrobe.app.core.model.garment.GarmentStatus
 import com.wardrobe.app.core.model.garment.ImageType
 import com.wardrobe.app.core.model.garment.ImportQueueItemStatus
+import com.wardrobe.app.core.model.garment.Neckline
 import com.wardrobe.app.core.model.garment.Season
 import com.wardrobe.app.core.model.garment.SleeveLength
+import com.wardrobe.app.core.model.garment.WaterproofLevel
 import com.wardrobe.app.core.model.outfit.OutfitSource
 import com.wardrobe.app.core.model.styling.FeedbackTargetType
 import com.wardrobe.app.core.model.styling.FeedbackVote
@@ -84,6 +91,24 @@ class Converters {
     fun toDressCode(value: String?): DressCode? = value?.let(DressCode::valueOf)
 
     @TypeConverter
+    fun fromNeckline(value: Neckline?): String? = value?.name
+
+    @TypeConverter
+    fun toNeckline(value: String?): Neckline? = value?.let(Neckline::valueOf)
+
+    @TypeConverter
+    fun fromGarmentGender(value: GarmentGender?): String? = value?.name
+
+    @TypeConverter
+    fun toGarmentGender(value: String?): GarmentGender? = value?.let(GarmentGender::valueOf)
+
+    @TypeConverter
+    fun fromWaterproofLevel(value: WaterproofLevel?): String? = value?.name
+
+    @TypeConverter
+    fun toWaterproofLevel(value: String?): WaterproofLevel? = value?.let(WaterproofLevel::valueOf)
+
+    @TypeConverter
     fun fromImageType(value: ImageType?): String? = value?.name
 
     @TypeConverter
@@ -136,4 +161,28 @@ class Converters {
 
     @TypeConverter
     fun toImportQueueItemStatus(value: String?): ImportQueueItemStatus? = value?.let(ImportQueueItemStatus::valueOf)
+
+    @TypeConverter
+    fun fromAiCapability(value: AiCapability?): String? = value?.name
+
+    @TypeConverter
+    fun toAiCapability(value: String?): AiCapability? = value?.let(AiCapability::valueOf)
+
+    @TypeConverter
+    fun fromAiJobStatus(value: AiJobStatus?): String? = value?.name
+
+    @TypeConverter
+    fun toAiJobStatus(value: String?): AiJobStatus? = value?.let(AiJobStatus::valueOf)
+
+    @TypeConverter
+    fun fromAiResultSource(value: AiResultSource?): String? = value?.name
+
+    @TypeConverter
+    fun toAiResultSource(value: String?): AiResultSource? = value?.let(AiResultSource::valueOf)
+
+    @TypeConverter
+    fun fromAiCallOutcome(value: AiCallOutcome?): String? = value?.name
+
+    @TypeConverter
+    fun toAiCallOutcome(value: String?): AiCallOutcome? = value?.let(AiCallOutcome::valueOf)
 }

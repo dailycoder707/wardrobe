@@ -45,6 +45,11 @@ data class HomeUiState(
     val homeTitle: String = "My Wardrobe",
     val showGreeting: Boolean = true,
     val showWardrobeHealthCard: Boolean = true,
+    /** M15 Part 5 — the same `PersonalizationSettings.avatarImageUri` the
+     * Profile screen edits; shown as a small tappable entry point into
+     * Profile from Home's own header. `null` is real, expected day-one
+     * state (a plain person icon, never a fabricated placeholder photo). */
+    val avatarImageUri: String? = null,
     val currentDateText: String = "",
     val summary: WardrobeSummaryUiModel? = null,
     val recentlyAdded: List<GarmentTileUiModel> = emptyList(),

@@ -14,6 +14,14 @@ import java.time.Clock
 import java.time.Instant
 import java.time.LocalDate
 
+/** "Show another" only ever reports this once the wardrobe's own candidate
+ * pool is genuinely exhausted for the current context — never a silent
+ * repeat of what's already on screen. */
+internal const val NO_MORE_ALTERNATIVES_MESSAGE =
+    "No other complete outfit matches this context with your current wardrobe."
+
+internal fun RecommendedOutfitUiModel.garmentSignature(): Set<Long> = items.map { it.tile.id }.toSet()
+
 /** A brand-new suggestion carries the `OutfitId(0)` sentinel (same convention
  * Outfit Builder/Saved Looks use, see `phase-6-personal-wardrobe-stylist.md`)
  * until a Quick Action actually commits it — saving twice for the same

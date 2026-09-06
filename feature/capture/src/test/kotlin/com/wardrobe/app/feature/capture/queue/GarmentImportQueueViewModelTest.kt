@@ -4,6 +4,7 @@ import com.wardrobe.app.core.domain.repository.ImageProcessingProgress
 import com.wardrobe.app.core.model.garment.BackgroundRemovalStatus
 import com.wardrobe.app.core.model.garment.ImportQueueItemStatus
 import com.wardrobe.app.core.model.garment.QualityReport
+import com.wardrobe.app.core.model.garment.ReconstructionOutcome
 import com.wardrobe.app.core.model.garment.StagedImage
 import com.wardrobe.app.feature.capture.fakes.FakeImageRepository
 import com.wardrobe.app.feature.capture.fakes.FakeImportQueueRepository
@@ -44,6 +45,9 @@ class GarmentImportQueueViewModelTest {
             qualityReport = QualityReport(emptyList()),
             backgroundRemovalStatus = BackgroundRemovalStatus.SUCCEEDED,
             cutoutConfidence = 0.9f,
+            reconstructionOutcome = ReconstructionOutcome.NOT_ATTEMPTED,
+            occlusionSeverity = null,
+            metadataSuggestions = emptyList(),
         )
 
     @Test

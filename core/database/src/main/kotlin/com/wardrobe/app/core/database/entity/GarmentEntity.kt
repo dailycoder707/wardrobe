@@ -6,9 +6,12 @@ import androidx.room.Index
 import androidx.room.PrimaryKey
 import com.wardrobe.app.core.model.garment.Condition
 import com.wardrobe.app.core.model.garment.Fit
+import com.wardrobe.app.core.model.garment.GarmentGender
 import com.wardrobe.app.core.model.garment.GarmentLength
 import com.wardrobe.app.core.model.garment.GarmentStatus
+import com.wardrobe.app.core.model.garment.Neckline
 import com.wardrobe.app.core.model.garment.SleeveLength
+import com.wardrobe.app.core.model.garment.WaterproofLevel
 
 /**
  * See phase-3-persistence.md for the full field-by-field rationale, the index list,
@@ -19,6 +22,10 @@ import com.wardrobe.app.core.model.garment.SleeveLength
  * install, so amending the entity directly (rather than a `Migration`) is safe
  * here — see `TECHNICAL_DEBT.md` if this project ever needs the rule for why
  * that stops being true once a real release exists.
+ *
+ * [secondaryColorId]/[neckline]/[gender]/[waterproofLevel] were added in
+ * `MIGRATION_8_9` (a real migration this time — schema version 8 shipped
+ * to a real install, so amending in place is no longer safe).
  */
 @Entity(
     tableName = "garments",
@@ -45,6 +52,12 @@ import com.wardrobe.app.core.model.garment.SleeveLength
             entity = ColorEntity::class,
             parentColumns = ["id"],
             childColumns = ["primaryColorId"],
+            onDelete = ForeignKey.SET_NULL,
+        ),
+        ForeignKey(
+            entity = ColorEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["secondaryColorId"],
             onDelete = ForeignKey.SET_NULL,
         ),
     ],
@@ -76,4 +89,8 @@ data class GarmentEntity(
     val createdAt: Long,
     val updatedAt: Long,
     val syncId: String = "",
+    val secondaryColorId: Long? = null,
+    val neckline: Neckline? = null,
+    val gender: GarmentGender? = null,
+    val waterproofLevel: WaterproofLevel? = null,
 )

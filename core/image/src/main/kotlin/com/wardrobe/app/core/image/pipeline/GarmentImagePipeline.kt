@@ -2,16 +2,15 @@ package com.wardrobe.app.core.image.pipeline
 
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
-import com.wardrobe.app.core.image.hashing.ImageHasher
+import com.wardrobe.app.core.image.metadata.GarmentMetadataEngine
+import com.wardrobe.app.core.image.presentation.GarmentPresentationEnhancer
 import com.wardrobe.app.core.image.quality.ImageQualityAnalyzer
-import com.wardrobe.app.core.image.segmentation.BackgroundRemover
-import com.wardrobe.app.core.image.segmentation.CutoutResult
+import com.wardrobe.app.core.image.reconstruction.GarmentReconstructionEngine
+import com.wardrobe.app.core.image.segmentation.GarmentExtractionEngine
 import com.wardrobe.app.core.image.storage.ImageFileStore
 import com.wardrobe.app.core.image.validation.ImageValidator
 import com.wardrobe.app.core.image.validation.ValidationResult
-import com.wardrobe.app.core.model.garment.BackgroundRemovalStatus
 import com.wardrobe.app.core.model.garment.ImageType
-import com.wardrobe.app.core.model.garment.ImageVariant
 import com.wardrobe.app.core.model.garment.NormalizedRect
 import com.wardrobe.app.core.model.garment.ProcessingStage
 import com.wardrobe.app.core.model.garment.QualityReport
@@ -20,26 +19,37 @@ import java.io.File
 import java.io.IOException
 import javax.inject.Inject
 import javax.inject.Singleton
-import kotlin.math.max
 
 /**
- * Orchestrates one photo through every stage in phase-5b-image-pipeline.md's
- * pipeline diagram. Returns plain data ([StagedImage]) — this class has no
- * Room dependency and never writes an `image_metadata` row; that's
- * `core:data`'s `ImageRepositoryImpl` job, same layering Phase 5a established
- * for every other repository.
+ * Orchestrates one photo through Add-to-Wardrobe v2's canonical stage order
+ * (ADR-012 §9): Capture → Extraction → Enhancement → Reconstruction →
+ * Metadata → (Review/Save happen above this layer). Every AI-capability
+ * stage is driven through an on-device-default interface local to
+ * `core:image` — [extractionEngine]/[reconstructionEngine]/[metadataEngine]
+ * may each actually be a cloud-aware Router bound in `core:data`, but this
+ * class never knows or cares; it only ever calls the interface. Returns
+ * plain data ([StagedImage]) — this class has no Room dependency and never
+ * writes an `image_metadata` row; that's `core:data`'s `ImageRepositoryImpl`
+ * job, same layering Phase 5a established for every other repository.
+ *
+ * [retryExtraction]/[retryEnhancement]/[retryMetadata] (M10) let the review
+ * screen redo a single downstream stage without recapturing — see
+ * `GarmentImagePipelineRetry.kt`.
  */
 @Singleton
 class GarmentImagePipeline
     @Inject
     constructor(
-        private val fileStore: ImageFileStore,
-        private val backgroundRemover: BackgroundRemover,
+        internal val fileStore: ImageFileStore,
+        internal val extractionEngine: GarmentExtractionEngine,
+        internal val presentationEnhancer: GarmentPresentationEnhancer,
+        internal val reconstructionEngine: GarmentReconstructionEngine,
+        internal val metadataEngine: GarmentMetadataEngine,
         private val qualityAnalyzer: ImageQualityAnalyzer,
     ) {
         /**
          * Fast path: decode capped at a small target size and run the quality
-         * checks only — no file writes, no background removal. Not `suspend`:
+         * checks only — no file writes, no AI capability calls. Not `suspend`:
          * it makes no suspending calls itself, so an `override suspend fun` at
          * the repository layer can call this directly without a redundant
          * modifier here (Detekt's `RedundantSuspendModifier`).
@@ -61,17 +71,11 @@ class GarmentImagePipeline
             validateOrThrow(sourceFile, ProcessingStage.VALIDATING)
 
             onProgress(ProcessingStage.CORRECTING_ORIENTATION)
-            val orientation = ExifOrientation.readOrientation(sourceFile)
-            var bitmap = decodeCapped(sourceFile, ORIGINAL_LONG_EDGE_PX)
-            bitmap = ExifOrientation.correct(bitmap, orientation)
-            bitmap = ImageResizer.resizeToLongEdge(bitmap, ORIGINAL_LONG_EDGE_PX)
+            val bitmap = decodeAndOrient(sourceFile)
 
             onProgress(ProcessingStage.SAVING_ORIGINAL)
             val stagingDir = fileStore.ensureExists(fileStore.stagingDir(stagingId))
-            val originalFile = fileStore.fileFor(stagingDir, ImageType.ORIGINAL)
-            writeOrThrow(ProcessingStage.SAVING_ORIGINAL) {
-                originalFile.outputStream().use { ImageResizer.encodeJpeg(bitmap, ORIGINAL_JPEG_QUALITY, it) }
-            }
+            val originalFile = saveOriginal(bitmap, stagingDir)
 
             onProgress(ProcessingStage.ANALYZING_QUALITY)
             val qualityReport = qualityAnalyzer.analyze(bitmap)
@@ -79,97 +83,58 @@ class GarmentImagePipeline
             onProgress(ProcessingStage.CROPPING)
             val workingBitmap = if (cropRect != null) ImageCropper.crop(bitmap, cropRect) else bitmap
 
-            onProgress(ProcessingStage.REMOVING_BACKGROUND)
-            val outcome = removeBackground(workingBitmap, stagingDir)
+            val aiStagesStartedAt = System.currentTimeMillis()
+            val extraction = extractGarment(extractionEngine, workingBitmap, onProgress)
+            val enhancement = enhancePresentation(presentationEnhancer, extraction, onProgress)
+            val reconstruction =
+                reconstructOcclusions(reconstructionEngine, enhancement, extraction.confidence, onProgress)
+            val metadataSuggestions = generateMetadata(metadataEngine, reconstruction.finalCutout, onProgress)
+            val aiStagesElapsedMs = System.currentTimeMillis() - aiStagesStartedAt
 
             onProgress(ProcessingStage.GENERATING_THUMBNAIL)
-            val thumbnailFile = writeThumbnail(outcome.thumbnailSource, stagingDir)
+            val thumbnailSource = reconstruction.finalCutout ?: workingBitmap
+            val thumbnailFile = writeThumbnail(fileStore, thumbnailSource, stagingDir)
 
             onProgress(ProcessingStage.HASHING)
-            val variants = buildVariants(originalFile, bitmap, outcome, thumbnailFile)
+            val originalVariant = originalFile.toVariant(ImageType.ORIGINAL, bitmap.width, bitmap.height)
+            val variants =
+                buildVariants(fileStore, originalVariant, reconstruction, enhancement, thumbnailFile, stagingDir)
+            val stageOutputs = PipelineStageOutputs(extraction, enhancement, reconstruction)
+            val comparisonStages = buildComparisonStages(fileStore, stagingDir, originalFile, stageOutputs, variants)
 
             onProgress(ProcessingStage.DONE)
-            return StagedImage(stagingId, variants, qualityReport, outcome.status, outcome.confidence)
+            return StagedImage(
+                stagingId = stagingId,
+                variants = variants,
+                qualityReport = qualityReport,
+                backgroundRemovalStatus = extraction.status,
+                cutoutConfidence = extraction.confidence,
+                reconstructionOutcome = reconstruction.outcome,
+                occlusionSeverity = reconstruction.occlusionSeverity,
+                metadataSuggestions = metadataSuggestions,
+                comparisonStages = comparisonStages,
+                aiProcessingSummary = buildAiProcessingSummary(metadataSuggestions, aiStagesElapsedMs),
+                extractionProvenance = extraction.provenance,
+            )
         }
 
-        private class BackgroundRemovalOutcome(
-            val cutoutFile: File?,
-            val cutoutBitmap: Bitmap?,
-            val status: BackgroundRemovalStatus,
-            val confidence: Float?,
-            val thumbnailSource: Bitmap,
-        )
+        private fun decodeAndOrient(sourceFile: File): Bitmap {
+            val orientation = ExifOrientation.readOrientation(sourceFile)
+            val decoded = decodeCapped(sourceFile, ORIGINAL_LONG_EDGE_PX)
+            val oriented = ExifOrientation.correct(decoded, orientation)
+            return ImageResizer.resizeToLongEdge(oriented, ORIGINAL_LONG_EDGE_PX)
+        }
 
-        private suspend fun removeBackground(
-            workingBitmap: Bitmap,
-            stagingDir: File,
-        ): BackgroundRemovalOutcome =
-            when (val cutout = backgroundRemover.removeBackground(workingBitmap)) {
-                is CutoutResult.Success -> {
-                    val file = fileStore.fileFor(stagingDir, ImageType.CUTOUT)
-                    writeOrThrow(ProcessingStage.REMOVING_BACKGROUND) {
-                        file.outputStream().use { ImageResizer.encodeWebpLossless(cutout.bitmap, it) }
-                    }
-                    BackgroundRemovalOutcome(
-                        cutoutFile = file,
-                        cutoutBitmap = cutout.bitmap,
-                        status = BackgroundRemovalStatus.SUCCEEDED,
-                        confidence = cutout.confidence,
-                        thumbnailSource = cutout.bitmap,
-                    )
-                }
-
-                is CutoutResult.Failure -> {
-                    BackgroundRemovalOutcome(
-                        cutoutFile = null,
-                        cutoutBitmap = null,
-                        status = BackgroundRemovalStatus.FAILED_KEPT_ORIGINAL,
-                        confidence = null,
-                        thumbnailSource = workingBitmap,
-                    )
-                }
-            }
-
-        private fun writeThumbnail(
-            source: Bitmap,
+        private fun saveOriginal(
+            bitmap: Bitmap,
             stagingDir: File,
         ): File {
-            val thumbnailBitmap = ImageResizer.resizeToLongEdge(source, THUMBNAIL_SIZE_PX)
-            val thumbnailFile = fileStore.fileFor(stagingDir, ImageType.THUMBNAIL)
-            writeOrThrow(ProcessingStage.GENERATING_THUMBNAIL) {
-                thumbnailFile.outputStream().use {
-                    ImageResizer.encodeWebpLossy(
-                        thumbnailBitmap,
-                        THUMBNAIL_QUALITY,
-                        it,
-                    )
-                }
+            val originalFile = fileStore.fileFor(stagingDir, ImageType.ORIGINAL)
+            writeOrThrow(ProcessingStage.SAVING_ORIGINAL) {
+                originalFile.outputStream().use { ImageResizer.encodeJpeg(bitmap, ORIGINAL_JPEG_QUALITY, it) }
             }
-            return thumbnailFile
+            return originalFile
         }
-
-        private fun buildVariants(
-            originalFile: File,
-            originalBitmap: Bitmap,
-            outcome: BackgroundRemovalOutcome,
-            thumbnailFile: File,
-        ): List<ImageVariant> =
-            buildList {
-                add(originalFile.toVariant(ImageType.ORIGINAL, originalBitmap.width, originalBitmap.height))
-                val cutoutFile = outcome.cutoutFile
-                val cutoutBitmap = outcome.cutoutBitmap
-                if (cutoutFile != null && cutoutBitmap != null) {
-                    add(cutoutFile.toVariant(ImageType.CUTOUT, cutoutBitmap.width, cutoutBitmap.height))
-                }
-                val thumbnailBitmap = BitmapFactory.decodeFile(thumbnailFile.path)
-                add(
-                    thumbnailFile.toVariant(
-                        ImageType.THUMBNAIL,
-                        thumbnailBitmap?.width ?: 0,
-                        thumbnailBitmap?.height ?: 0,
-                    ),
-                )
-            }
 
         private fun validateOrThrow(
             file: File,
@@ -181,66 +146,9 @@ class GarmentImagePipeline
             }
         }
 
-        private inline fun writeOrThrow(
-            stage: ProcessingStage,
-            block: () -> Unit,
-        ) {
-            try {
-                block()
-            } catch (io: IOException) {
-                throw ImageProcessingException(stage, io)
-            }
-        }
-
-        private fun File.toVariant(
-            type: ImageType,
-            width: Int,
-            height: Int,
-        ): ImageVariant =
-            ImageVariant(
-                type = type,
-                filePath = path,
-                width = width,
-                height = height,
-                fileSizeBytes = length(),
-                format = if (type == ImageType.ORIGINAL) "jpg" else "webp",
-                checksum = ImageHasher.sha256(this),
-            )
-
-        /** Decodes with `inSampleSize` computed from a bounds-only pre-decode, so
-         * a full-resolution camera image is never fully decoded into memory just
-         * to be downscaled afterward (phase-5b-image-pipeline.md's performance
-         * section). `OutOfMemoryError` is caught narrowly around this single
-         * allocation, not as a blanket `catch (Throwable)`. */
-        private fun decodeCapped(
-            file: File,
-            targetLongEdge: Int,
-        ): Bitmap {
-            val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-            BitmapFactory.decodeFile(file.path, bounds)
-            val longEdge = max(bounds.outWidth, bounds.outHeight)
-            var sampleSize = 1
-            while (longEdge / (sampleSize * 2) >= targetLongEdge) {
-                sampleSize *= 2
-            }
-            val options = BitmapFactory.Options().apply { inSampleSize = sampleSize }
-            val decoded =
-                try {
-                    BitmapFactory.decodeFile(file.path, options)
-                } catch (oom: OutOfMemoryError) {
-                    throw ImageProcessingException(ProcessingStage.SAVING_ORIGINAL, IOException("out_of_memory", oom))
-                }
-            return decoded ?: throw ImageProcessingException(
-                ProcessingStage.SAVING_ORIGINAL,
-                IOException("decodeFile returned null for ${file.path}"),
-            )
-        }
-
-        private companion object {
+        internal companion object {
             const val ORIGINAL_LONG_EDGE_PX = 2048
             const val ORIGINAL_JPEG_QUALITY = 85
-            const val THUMBNAIL_SIZE_PX = 300
-            const val THUMBNAIL_QUALITY = 80
             const val QUICK_CHECK_LONG_EDGE_PX = 512
         }
     }

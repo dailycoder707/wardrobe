@@ -17,7 +17,17 @@ import com.wardrobe.app.core.model.styling.SuggestionContext
  * `@Binds` target without this interface, or any feature module, changing.
  */
 interface StylingEngineRepository {
-    suspend fun suggestOutfits(context: SuggestionContext): List<ScoredOutfit>
+    /** [count] — M19's "Show another" needs more than the default 3
+     * candidates once the user has already seen them all; defaulted so
+     * every existing call site (Home's Daily Brief, Trip packing-list
+     * generation, the on-device fallback itself) is unaffected. Requesting
+     * more than the wardrobe can genuinely support distinct outfits for
+     * simply returns fewer than [count] — never a fabricated/repeated
+     * entry pretending to be new. */
+    suspend fun suggestOutfits(
+        context: SuggestionContext,
+        count: Int = DEFAULT_SUGGESTION_COUNT,
+    ): List<ScoredOutfit>
 
     suspend fun suggestForItem(
         garmentId: GarmentId,
@@ -59,4 +69,11 @@ interface StylingEngineRepository {
      * never user-facing. Reading before any suggestion call returns the
      * default, all-zero [RecommendationRunDiagnostics]. */
     fun lastRunDiagnostics(): RecommendationRunDiagnostics
+
+    companion object {
+        /** Matches `core:data`'s own `DEFAULT_SUGGESTION_COUNT` — kept as a
+         * separate constant here since `core:domain` doesn't depend on
+         * `core:data`; both are 3 by construction, not by coincidence. */
+        const val DEFAULT_SUGGESTION_COUNT = 3
+    }
 }

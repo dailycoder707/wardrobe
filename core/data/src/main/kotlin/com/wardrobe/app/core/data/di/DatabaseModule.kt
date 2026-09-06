@@ -3,10 +3,14 @@ package com.wardrobe.app.core.data.di
 import android.content.Context
 import androidx.room.Room
 import com.wardrobe.app.core.database.WardrobeDatabase
+import com.wardrobe.app.core.database.dao.AiCallLogDao
+import com.wardrobe.app.core.database.dao.AiJobDao
+import com.wardrobe.app.core.database.dao.AiResultCacheDao
 import com.wardrobe.app.core.database.dao.BodyProfileDao
 import com.wardrobe.app.core.database.dao.BrandDao
 import com.wardrobe.app.core.database.dao.CategoryDao
 import com.wardrobe.app.core.database.dao.ColorDao
+import com.wardrobe.app.core.database.dao.FabricDao
 import com.wardrobe.app.core.database.dao.FeedbackDao
 import com.wardrobe.app.core.database.dao.GarmentDao
 import com.wardrobe.app.core.database.dao.GarmentMaskDao
@@ -34,6 +38,8 @@ import com.wardrobe.app.core.database.migration.MIGRATION_3_4
 import com.wardrobe.app.core.database.migration.MIGRATION_4_5
 import com.wardrobe.app.core.database.migration.MIGRATION_5_6
 import com.wardrobe.app.core.database.migration.MIGRATION_6_7
+import com.wardrobe.app.core.database.migration.MIGRATION_7_8
+import com.wardrobe.app.core.database.migration.MIGRATION_8_9
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -71,8 +77,16 @@ object DatabaseModule {
         Room
             .databaseBuilder(context, WardrobeDatabase::class.java, WardrobeDatabase.DATABASE_NAME)
             .addCallback(WardrobeDatabase.SeedCallback(applicationScope) { databaseProvider.get() })
-            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
-            .build()
+            .addMigrations(
+                MIGRATION_1_2,
+                MIGRATION_2_3,
+                MIGRATION_3_4,
+                MIGRATION_4_5,
+                MIGRATION_5_6,
+                MIGRATION_6_7,
+                MIGRATION_7_8,
+                MIGRATION_8_9,
+            ).build()
 
     @Provides
     @Singleton
@@ -95,6 +109,9 @@ object DatabaseModule {
 
     @Provides
     fun provideOccasionDao(db: WardrobeDatabase): OccasionDao = db.occasionDao()
+
+    @Provides
+    fun provideFabricDao(db: WardrobeDatabase): FabricDao = db.fabricDao()
 
     @Provides
     fun provideGarmentDao(db: WardrobeDatabase): GarmentDao = db.garmentDao()
@@ -153,4 +170,13 @@ object DatabaseModule {
 
     @Provides
     fun provideImportQueueDao(db: WardrobeDatabase): ImportQueueDao = db.importQueueDao()
+
+    @Provides
+    fun provideAiJobDao(db: WardrobeDatabase): AiJobDao = db.aiJobDao()
+
+    @Provides
+    fun provideAiResultCacheDao(db: WardrobeDatabase): AiResultCacheDao = db.aiResultCacheDao()
+
+    @Provides
+    fun provideAiCallLogDao(db: WardrobeDatabase): AiCallLogDao = db.aiCallLogDao()
 }

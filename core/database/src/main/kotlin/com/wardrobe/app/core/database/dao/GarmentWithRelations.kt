@@ -5,7 +5,9 @@ import androidx.room.Relation
 import com.wardrobe.app.core.database.entity.GarmentColorPaletteCrossRef
 import com.wardrobe.app.core.database.entity.GarmentDressCodeCrossRef
 import com.wardrobe.app.core.database.entity.GarmentEntity
+import com.wardrobe.app.core.database.entity.GarmentFabricCrossRef
 import com.wardrobe.app.core.database.entity.GarmentMaterialCrossRef
+import com.wardrobe.app.core.database.entity.GarmentOccasionCrossRef
 import com.wardrobe.app.core.database.entity.GarmentSeasonCrossRef
 import com.wardrobe.app.core.database.entity.GarmentTagCrossRef
 import com.wardrobe.app.core.database.entity.ImageMetadataEntity
@@ -32,4 +34,8 @@ data class GarmentWithRelations(
     val dressCodes: List<GarmentDressCodeCrossRef>,
     @Relation(parentColumn = "id", entityColumn = "garmentId")
     val images: List<ImageMetadataEntity>,
+    @Relation(parentColumn = "id", entityColumn = "garmentId")
+    val fabrics: List<GarmentFabricCrossRef>,
+    @Relation(parentColumn = "id", entityColumn = "garmentId")
+    val occasions: List<GarmentOccasionCrossRef>,
 )

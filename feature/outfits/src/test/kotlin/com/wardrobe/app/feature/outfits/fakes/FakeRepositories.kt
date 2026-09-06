@@ -1,8 +1,10 @@
 package com.wardrobe.app.feature.outfits.fakes
 
+import com.wardrobe.app.core.domain.repository.AiProviderSettingsRepository
 import com.wardrobe.app.core.domain.repository.BrandRepository
 import com.wardrobe.app.core.domain.repository.CategoryRepository
 import com.wardrobe.app.core.domain.repository.GarmentRepository
+import com.wardrobe.app.core.domain.repository.Location
 import com.wardrobe.app.core.domain.repository.OccasionRepository
 import com.wardrobe.app.core.domain.repository.OutfitRepository
 import com.wardrobe.app.core.domain.repository.StyleRuleRepository
@@ -11,6 +13,13 @@ import com.wardrobe.app.core.domain.repository.StylistPreferencesRepository
 import com.wardrobe.app.core.domain.repository.TagRepository
 import com.wardrobe.app.core.domain.repository.WardrobeIntelligenceRepository
 import com.wardrobe.app.core.domain.repository.WearEventRepository
+import com.wardrobe.app.core.domain.repository.WeatherRepository
+import com.wardrobe.app.core.model.ai.AiActiveOperation
+import com.wardrobe.app.core.model.ai.AiActivityEntry
+import com.wardrobe.app.core.model.ai.AiCapability
+import com.wardrobe.app.core.model.ai.AiConnectionTestResult
+import com.wardrobe.app.core.model.ai.AiProviderConfig
+import com.wardrobe.app.core.model.ai.AiUsageSummary
 import com.wardrobe.app.core.model.common.BrandId
 import com.wardrobe.app.core.model.common.CategoryId
 import com.wardrobe.app.core.model.common.DateRange
@@ -47,6 +56,7 @@ import com.wardrobe.app.core.model.styling.ScoredOutfit
 import com.wardrobe.app.core.model.styling.StyleRule
 import com.wardrobe.app.core.model.styling.SuggestionContext
 import com.wardrobe.app.core.model.wear.WearEvent
+import com.wardrobe.app.core.model.weather.WeatherSnapshot
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -291,8 +301,28 @@ class FakeStylingEngineRepository(
     var replacementId: GarmentId? = null,
 ) : StylingEngineRepository {
     var lastReplaceSlot: OutfitSlot? = null
+    var lastRequestedCount: Int = 0
+    var lastContext: SuggestionContext? = null
 
-    override suspend fun suggestOutfits(context: SuggestionContext): List<ScoredOutfit> = suggestions
+    /** Lets a test vary the result by how many outfits were requested
+     * (M19's "Show another" dedup) — `null` (the default) just returns
+     * [suggestions] regardless of [count], matching every existing test's
+     * expectations unchanged. */
+    var suggestionsForCount: ((Int) -> List<ScoredOutfit>)? = null
+
+    /** Lets a test simulate a genuine engine failure (M19's error state) —
+     * `null` (the default) never throws, matching every existing test. */
+    var errorToThrow: Throwable? = null
+
+    override suspend fun suggestOutfits(
+        context: SuggestionContext,
+        count: Int,
+    ): List<ScoredOutfit> {
+        errorToThrow?.let { throw it }
+        lastRequestedCount = count
+        lastContext = context
+        return suggestionsForCount?.invoke(count) ?: suggestions
+    }
 
     override suspend fun suggestForItem(
         garmentId: GarmentId,
@@ -325,6 +355,54 @@ class FakeStylingEngineRepository(
     var diagnostics = RecommendationRunDiagnostics()
 
     override fun lastRunDiagnostics(): RecommendationRunDiagnostics = diagnostics
+}
+
+class FakeWeatherRepository(
+    var snapshot: WeatherSnapshot? = null,
+) : WeatherRepository {
+    override suspend fun getForecast(
+        location: Location,
+        date: LocalDate,
+    ): WeatherSnapshot = snapshot ?: error("FakeWeatherRepository.getForecast called with no snapshot configured")
+
+    override suspend fun getForecastForConfiguredLocation(date: LocalDate): WeatherSnapshot? = snapshot
+}
+
+class FakeAiProviderSettingsRepository : AiProviderSettingsRepository {
+    val configsFlow =
+        MutableStateFlow(AiCapability.entries.associateWith { AiProviderConfig.onDeviceDefault(it) })
+    val activityFlow = MutableStateFlow<List<AiActivityEntry>>(emptyList())
+    val activeOperationsFlow = MutableStateFlow<List<AiActiveOperation>>(emptyList())
+    private val usageFlow = MutableStateFlow<List<AiUsageSummary>>(emptyList())
+
+    override fun observeConfig(capability: AiCapability): Flow<AiProviderConfig> =
+        configsFlow.asStateFlow().map { it.getValue(capability) }
+
+    override fun observeAllConfigs(): Flow<List<AiProviderConfig>> =
+        configsFlow.asStateFlow().map { map -> AiCapability.entries.map { map.getValue(it) } }
+
+    override suspend fun setConfig(config: AiProviderConfig) {
+        configsFlow.value = configsFlow.value + (config.capability to config)
+    }
+
+    override suspend fun hasApiKey(capability: AiCapability): Boolean = false
+
+    override suspend fun setApiKey(
+        capability: AiCapability,
+        apiKey: String,
+    ) = Unit
+
+    override suspend fun clearApiKey(capability: AiCapability) = Unit
+
+    override suspend fun testConnection(capability: AiCapability): AiConnectionTestResult =
+        AiConnectionTestResult.Failure("not configured for tests")
+
+    override fun observeUsageSummaries(): Flow<List<AiUsageSummary>> = usageFlow.asStateFlow()
+
+    override fun observeRecentActivity(limit: Int): Flow<List<AiActivityEntry>> =
+        activityFlow.asStateFlow().map { it.take(limit) }
+
+    override fun observeActiveOperations(): Flow<List<AiActiveOperation>> = activeOperationsFlow.asStateFlow()
 }
 
 class FakeWardrobeIntelligenceRepository : WardrobeIntelligenceRepository {

@@ -3,35 +3,50 @@ package com.wardrobe.app.feature.stats.fakes
 import com.wardrobe.app.core.domain.repository.BrandRepository
 import com.wardrobe.app.core.domain.repository.CategoryRepository
 import com.wardrobe.app.core.domain.repository.ColorRepository
+import com.wardrobe.app.core.domain.repository.FabricRepository
 import com.wardrobe.app.core.domain.repository.GarmentRepository
+import com.wardrobe.app.core.domain.repository.MaterialRepository
+import com.wardrobe.app.core.domain.repository.OccasionRepository
 import com.wardrobe.app.core.domain.repository.OutfitRepository
 import com.wardrobe.app.core.domain.repository.StatsRepository
 import com.wardrobe.app.core.domain.repository.WearEventRepository
 import com.wardrobe.app.core.model.common.BrandId
 import com.wardrobe.app.core.model.common.ColorId
 import com.wardrobe.app.core.model.common.DateRange
+import com.wardrobe.app.core.model.common.FabricId
 import com.wardrobe.app.core.model.common.GarmentId
+import com.wardrobe.app.core.model.common.MaterialId
+import com.wardrobe.app.core.model.common.OccasionId
 import com.wardrobe.app.core.model.common.OutfitId
 import com.wardrobe.app.core.model.common.WearEventId
 import com.wardrobe.app.core.model.garment.Brand
 import com.wardrobe.app.core.model.garment.Category
 import com.wardrobe.app.core.model.garment.Color
 import com.wardrobe.app.core.model.garment.DressCode
+import com.wardrobe.app.core.model.garment.Fabric
 import com.wardrobe.app.core.model.garment.Garment
 import com.wardrobe.app.core.model.garment.GarmentFilter
+import com.wardrobe.app.core.model.garment.Material
+import com.wardrobe.app.core.model.outfit.Occasion
 import com.wardrobe.app.core.model.outfit.Outfit
 import com.wardrobe.app.core.model.outfit.OutfitFilter
 import com.wardrobe.app.core.model.stats.ClosetGap
 import com.wardrobe.app.core.model.stats.CostPerWearEntry
 import com.wardrobe.app.core.model.stats.DormantItem
+import com.wardrobe.app.core.model.stats.FabricDistributionEntry
+import com.wardrobe.app.core.model.stats.MaterialDistributionEntry
+import com.wardrobe.app.core.model.stats.OccasionCoverageEntry
 import com.wardrobe.app.core.model.stats.RepeatedOutfit
 import com.wardrobe.app.core.model.stats.StatsWindow
 import com.wardrobe.app.core.model.stats.UsageStats
+import com.wardrobe.app.core.model.stats.WardrobeMixDistribution
+import com.wardrobe.app.core.model.stats.WardrobeUsageGaps
 import com.wardrobe.app.core.model.stats.WearHeatmapDay
 import com.wardrobe.app.core.model.wear.WearEvent
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 
 class FakeGarmentRepository(
@@ -177,6 +192,36 @@ class FakeColorRepository(
     ): ColorId = throw UnsupportedOperationException("not needed for tests")
 }
 
+class FakeMaterialRepository(
+    initial: List<Material> = emptyList(),
+) : MaterialRepository {
+    private val flow = MutableStateFlow(initial)
+
+    override fun observeAll(): Flow<List<Material>> = flow.asStateFlow()
+
+    override suspend fun create(name: String): MaterialId = throw UnsupportedOperationException("not needed for tests")
+}
+
+class FakeFabricRepository(
+    initial: List<Fabric> = emptyList(),
+) : FabricRepository {
+    private val flow = MutableStateFlow(initial)
+
+    override fun observeAll(): Flow<List<Fabric>> = flow.asStateFlow()
+
+    override suspend fun create(name: String): FabricId = throw UnsupportedOperationException("not needed for tests")
+}
+
+class FakeOccasionRepository(
+    initial: List<Occasion> = emptyList(),
+) : OccasionRepository {
+    private val flow = MutableStateFlow(initial)
+
+    override fun observeAll(): Flow<List<Occasion>> = flow.asStateFlow()
+
+    override suspend fun create(name: String): OccasionId = throw UnsupportedOperationException("not needed for tests")
+}
+
 class FakeWearEventRepository(
     initial: List<WearEvent> = emptyList(),
 ) : WearEventRepository {
@@ -223,6 +268,10 @@ class FakeStatsRepository : StatsRepository {
     val outfitWearEventCount = MutableStateFlow(0)
     val topWeekendDressCode = MutableStateFlow<DressCode?>(null)
     val topWeekdayDressCode = MutableStateFlow<DressCode?>(null)
+    val materialDistribution = MutableStateFlow<List<MaterialDistributionEntry>>(emptyList())
+    val fabricDistribution = MutableStateFlow<List<FabricDistributionEntry>>(emptyList())
+    val occasionCoverage = MutableStateFlow<List<OccasionCoverageEntry>>(emptyList())
+    val garmentCountWithoutOccasion = MutableStateFlow(0)
 
     /** Mirrors `StatsRepositoryImpl`'s real contract: the emitted [UsageStats]
      * always reflects the actually-requested [window], not just whatever
@@ -232,7 +281,12 @@ class FakeStatsRepository : StatsRepository {
 
     override fun observeCostPerWear(): Flow<List<CostPerWearEntry>> = costPerWear.asStateFlow()
 
-    override fun observeDormantItems(window: StatsWindow): Flow<List<DormantItem>> = dormantItems.asStateFlow()
+    var lastDormantItemsWindow: StatsWindow? = null
+
+    override fun observeDormantItems(window: StatsWindow): Flow<List<DormantItem>> {
+        lastDormantItemsWindow = window
+        return dormantItems.asStateFlow()
+    }
 
     override fun observeClosetGaps(): Flow<List<ClosetGap>> = closetGaps.asStateFlow()
 
@@ -243,9 +297,10 @@ class FakeStatsRepository : StatsRepository {
         limit: Int,
     ): Flow<List<RepeatedOutfit>> = repeatedOutfits.asStateFlow()
 
-    override fun observeNeverWornOutfitIds(): Flow<List<OutfitId>> = neverWornOutfitIds.asStateFlow()
-
-    override fun observeGarmentsMissingOutfits(): Flow<List<GarmentId>> = garmentsMissingOutfits.asStateFlow()
+    override fun observeWardrobeUsageGaps(): Flow<WardrobeUsageGaps> =
+        combine(neverWornOutfitIds, garmentsMissingOutfits) { neverWorn, missingOutfits ->
+            WardrobeUsageGaps(neverWorn, missingOutfits)
+        }
 
     override fun observeOutfitWearEventCount(window: StatsWindow): Flow<Int> = outfitWearEventCount.asStateFlow()
 
@@ -253,6 +308,16 @@ class FakeStatsRepository : StatsRepository {
         window: StatsWindow,
         isWeekend: Boolean,
     ): Flow<DressCode?> = if (isWeekend) topWeekendDressCode.asStateFlow() else topWeekdayDressCode.asStateFlow()
+
+    override fun observeWardrobeMixDistribution(): Flow<WardrobeMixDistribution> =
+        combine(
+            materialDistribution,
+            fabricDistribution,
+            occasionCoverage,
+            garmentCountWithoutOccasion,
+        ) { materials, fabrics, occasions, withoutOccasion ->
+            WardrobeMixDistribution(materials, fabrics, occasions, withoutOccasion)
+        }
 }
 
 fun emptyUsageStats(window: StatsWindow): UsageStats =

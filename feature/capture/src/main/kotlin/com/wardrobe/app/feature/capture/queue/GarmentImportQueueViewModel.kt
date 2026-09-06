@@ -19,7 +19,14 @@ import javax.inject.Inject
 
 private const val STOP_TIMEOUT_MS = 5000L
 private val RESUMABLE_STATUSES =
-    setOf(ImportQueueItemStatus.PENDING, ImportQueueItemStatus.IMPORTING, ImportQueueItemStatus.REMOVING_BACKGROUND)
+    setOf(
+        ImportQueueItemStatus.PENDING,
+        ImportQueueItemStatus.IMPORTING,
+        ImportQueueItemStatus.EXTRACTING_GARMENT,
+        ImportQueueItemStatus.ENHANCING_PRESENTATION,
+        ImportQueueItemStatus.RECONSTRUCTING_OCCLUSIONS,
+        ImportQueueItemStatus.GENERATING_METADATA,
+    )
 
 /**
  * Drives every not-yet-`READY_FOR_REVIEW` queue row through
@@ -98,21 +105,20 @@ class GarmentImportQueueViewModel
 
 private fun ImportQueueItem.applyProgress(progress: ImageProcessingProgress): ImportQueueItem =
     when (progress) {
-        is ImageProcessingProgress.InProgress -> {
-            val status =
-                if (progress.stage == ProcessingStage.REMOVING_BACKGROUND) {
-                    ImportQueueItemStatus.REMOVING_BACKGROUND
-                } else {
-                    ImportQueueItemStatus.IMPORTING
-                }
-            copy(status = status)
-        }
+        is ImageProcessingProgress.InProgress -> copy(status = progress.stage.toQueueStatus())
+        is ImageProcessingProgress.Completed -> copy(status = ImportQueueItemStatus.READY_FOR_REVIEW)
+        is ImageProcessingProgress.Failed -> copy(status = ImportQueueItemStatus.FAILED, errorMessage = progress.reason)
+    }
 
-        is ImageProcessingProgress.Completed -> {
-            copy(status = ImportQueueItemStatus.READY_FOR_REVIEW)
-        }
-
-        is ImageProcessingProgress.Failed -> {
-            copy(status = ImportQueueItemStatus.FAILED, errorMessage = progress.reason)
-        }
+/** Add-to-Wardrobe v2's per-stage queue statuses (ADR-012) — every other
+ * pipeline stage still collapses to the generic [ImportQueueItemStatus.IMPORTING]
+ * spinner state; only the four user-meaningful AI-capability stages get
+ * their own real, distinct status (Constitution rule 4). */
+private fun ProcessingStage.toQueueStatus(): ImportQueueItemStatus =
+    when (this) {
+        ProcessingStage.EXTRACTING_GARMENT -> ImportQueueItemStatus.EXTRACTING_GARMENT
+        ProcessingStage.ENHANCING_PRESENTATION -> ImportQueueItemStatus.ENHANCING_PRESENTATION
+        ProcessingStage.RECONSTRUCTING_OCCLUSIONS -> ImportQueueItemStatus.RECONSTRUCTING_OCCLUSIONS
+        ProcessingStage.GENERATING_METADATA -> ImportQueueItemStatus.GENERATING_METADATA
+        else -> ImportQueueItemStatus.IMPORTING
     }

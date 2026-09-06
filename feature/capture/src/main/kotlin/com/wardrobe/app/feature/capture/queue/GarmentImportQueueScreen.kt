@@ -10,8 +10,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Error
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -98,7 +98,13 @@ private fun GarmentImportQueueRowTrailing(
     onRetry: (Long) -> Unit,
 ) {
     when (item.status) {
-        ImportQueueItemStatus.PENDING, ImportQueueItemStatus.IMPORTING, ImportQueueItemStatus.REMOVING_BACKGROUND -> {
+        ImportQueueItemStatus.PENDING,
+        ImportQueueItemStatus.IMPORTING,
+        ImportQueueItemStatus.EXTRACTING_GARMENT,
+        ImportQueueItemStatus.ENHANCING_PRESENTATION,
+        ImportQueueItemStatus.RECONSTRUCTING_OCCLUSIONS,
+        ImportQueueItemStatus.GENERATING_METADATA,
+        -> {
             CircularProgressIndicator(modifier = Modifier.padding(4.dp))
         }
 
@@ -122,7 +128,10 @@ private fun GarmentImportQueueRowTrailing(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Filled.Error, contentDescription = "Failed", tint = MaterialTheme.colorScheme.error)
                 IconButton(onClick = { onRetry(item.id) }) {
-                    Icon(Icons.Filled.Close, contentDescription = "Retry")
+                    // M22 fix: this used the Close glyph, which reads as "dismiss" rather
+                    // than "try again" — Refresh matches every other retry affordance in
+                    // the app (e.g. GarmentReviewAiPanels' RetryButton).
+                    Icon(Icons.Filled.Refresh, contentDescription = "Retry")
                 }
             }
         }
@@ -133,7 +142,10 @@ private fun ImportQueueItemStatus.displayLabel(): String =
     when (this) {
         ImportQueueItemStatus.PENDING -> "Importing…"
         ImportQueueItemStatus.IMPORTING -> "Importing…"
-        ImportQueueItemStatus.REMOVING_BACKGROUND -> "Removing background…"
+        ImportQueueItemStatus.EXTRACTING_GARMENT -> "Isolating garment…"
+        ImportQueueItemStatus.ENHANCING_PRESENTATION -> "Enhancing presentation…"
+        ImportQueueItemStatus.RECONSTRUCTING_OCCLUSIONS -> "Reconstructing hidden areas…"
+        ImportQueueItemStatus.GENERATING_METADATA -> "Generating details…"
         ImportQueueItemStatus.READY_FOR_REVIEW -> "Ready — tap to add details"
         ImportQueueItemStatus.SAVING -> "Saving…"
         ImportQueueItemStatus.COMPLETED -> "Saved"

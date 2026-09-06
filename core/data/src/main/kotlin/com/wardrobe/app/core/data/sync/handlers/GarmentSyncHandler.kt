@@ -6,23 +6,30 @@ import com.wardrobe.app.core.data.sync.SyncIdResolver
 import com.wardrobe.app.core.database.dao.BrandDao
 import com.wardrobe.app.core.database.dao.CategoryDao
 import com.wardrobe.app.core.database.dao.ColorDao
+import com.wardrobe.app.core.database.dao.FabricDao
 import com.wardrobe.app.core.database.dao.GarmentDao
 import com.wardrobe.app.core.database.dao.GarmentWithRelations
 import com.wardrobe.app.core.database.dao.MaterialDao
+import com.wardrobe.app.core.database.dao.OccasionDao
 import com.wardrobe.app.core.database.dao.TagDao
 import com.wardrobe.app.core.database.entity.GarmentColorPaletteCrossRef
 import com.wardrobe.app.core.database.entity.GarmentDressCodeCrossRef
 import com.wardrobe.app.core.database.entity.GarmentEntity
+import com.wardrobe.app.core.database.entity.GarmentFabricCrossRef
 import com.wardrobe.app.core.database.entity.GarmentMaterialCrossRef
+import com.wardrobe.app.core.database.entity.GarmentOccasionCrossRef
 import com.wardrobe.app.core.database.entity.GarmentSeasonCrossRef
 import com.wardrobe.app.core.database.entity.GarmentTagCrossRef
 import com.wardrobe.app.core.model.garment.Condition
 import com.wardrobe.app.core.model.garment.DressCode
 import com.wardrobe.app.core.model.garment.Fit
+import com.wardrobe.app.core.model.garment.GarmentGender
 import com.wardrobe.app.core.model.garment.GarmentLength
 import com.wardrobe.app.core.model.garment.GarmentStatus
+import com.wardrobe.app.core.model.garment.Neckline
 import com.wardrobe.app.core.model.garment.Season
 import com.wardrobe.app.core.model.garment.SleeveLength
+import com.wardrobe.app.core.model.garment.WaterproofLevel
 import kotlinx.serialization.Serializable
 
 @Serializable
@@ -34,6 +41,12 @@ private data class PaletteWire(
 @Serializable
 private data class MaterialWireEntry(
     val materialSyncId: String,
+    val percentage: Int?,
+)
+
+@Serializable
+private data class FabricWireEntry(
+    val fabricSyncId: String,
     val percentage: Int?,
 )
 
@@ -67,6 +80,12 @@ private data class GarmentWire(
     val tagSyncIds: List<String>,
     val seasons: List<Season>,
     val dressCodes: List<DressCode>,
+    val secondaryColorSyncId: String?,
+    val neckline: Neckline?,
+    val gender: GarmentGender?,
+    val waterproofLevel: WaterproofLevel?,
+    val fabrics: List<FabricWireEntry>,
+    val occasionSyncIds: List<String>,
 )
 
 /**
@@ -91,6 +110,8 @@ class GarmentSyncHandler(
     private val brandDao: BrandDao,
     private val materialDao: MaterialDao,
     private val tagDao: TagDao,
+    private val fabricDao: FabricDao,
+    private val occasionDao: OccasionDao,
 ) : SyncEntityHandler {
     override val tableName = "garments"
 
@@ -108,6 +129,7 @@ class GarmentSyncHandler(
     ): String {
         val brandSyncId = garment.brandId?.let { brandDao.getById(it)?.syncId }
         val primaryColorSyncId = garment.primaryColorId?.let { colorDao.getById(it)?.syncId }
+        val secondaryColorSyncId = garment.secondaryColorId?.let { colorDao.getById(it)?.syncId }
         val wire =
             GarmentWire(
                 name = garment.name,
@@ -128,6 +150,15 @@ class GarmentSyncHandler(
                 careNotes = garment.careNotes,
                 notes = garment.notes,
                 status = garment.status,
+                secondaryColorSyncId = secondaryColorSyncId,
+                neckline = garment.neckline,
+                gender = garment.gender,
+                waterproofLevel = garment.waterproofLevel,
+                fabrics =
+                    relations.fabrics.mapNotNull { ref ->
+                        fabricDao.getById(ref.fabricId)?.syncId?.let { FabricWireEntry(it, ref.percentage) }
+                    },
+                occasionSyncIds = relations.occasions.mapNotNull { occasionDao.getById(it.occasionId)?.syncId },
                 isReviewed = garment.isReviewed,
                 isFavorite = garment.isFavorite,
                 isInLaundry = garment.isInLaundry,
@@ -184,6 +215,7 @@ class GarmentSyncHandler(
         }
         val brandId = wire.brandSyncId?.let { resolver.resolveLocalId("brands", it) }
         val primaryColorId = wire.primaryColorSyncId?.let { resolver.resolveLocalId("colors", it) }
+        val secondaryColorId = wire.secondaryColorSyncId?.let { resolver.resolveLocalId("colors", it) }
         val entity =
             GarmentEntity(
                 id = existing?.id ?: 0,
@@ -212,6 +244,10 @@ class GarmentSyncHandler(
                 createdAt = wire.createdAt,
                 updatedAt = remoteUpdatedAt,
                 syncId = syncId,
+                secondaryColorId = secondaryColorId,
+                neckline = wire.neckline,
+                gender = wire.gender,
+                waterproofLevel = wire.waterproofLevel,
             )
         if (existing == null) garmentDao.insert(entity) else garmentDao.update(entity)
         return ApplyOutcome.Applied
@@ -226,6 +262,8 @@ class GarmentSyncHandler(
         mergePalette(garmentId, wire, resolver)
         mergeMaterials(garmentId, wire, resolver)
         mergeTags(garmentId, wire, resolver)
+        mergeFabrics(garmentDao, garmentId, wire, resolver)
+        mergeOccasions(garmentDao, garmentId, wire, resolver)
     }
 
     private suspend fun mergeSeasonsAndDressCodes(
@@ -306,4 +344,41 @@ class GarmentSyncHandler(
             }
         }
     }
+}
+
+/** Top-level (not a [GarmentSyncHandler] member) purely to stay under this
+ * project's `TooManyFunctions` threshold — same reasoning as
+ * `GarmentRepositoryImpl.kt`'s own top-level `writeCrossRefs`/
+ * `loadFabricsById`. Mirrors [GarmentSyncHandler]'s own `mergeMaterials`
+ * shape exactly. */
+private suspend fun mergeFabrics(
+    garmentDao: GarmentDao,
+    garmentId: Long,
+    wire: GarmentWire,
+    resolver: SyncIdResolver,
+) {
+    val current = garmentDao.getWithRelations(garmentId) ?: return
+    val byFabricId = current.fabrics.associateBy { it.fabricId }.toMutableMap()
+    wire.fabrics.forEach { entry ->
+        val fabricId = resolver.resolveLocalId("fabrics", entry.fabricSyncId) ?: return@forEach
+        byFabricId[fabricId] = GarmentFabricCrossRef(garmentId, fabricId, entry.percentage)
+    }
+    garmentDao.clearFabrics(garmentId)
+    garmentDao.insertFabrics(byFabricId.values.toList())
+}
+
+/** Top-level for the same reason as [mergeFabrics] above. */
+private suspend fun mergeOccasions(
+    garmentDao: GarmentDao,
+    garmentId: Long,
+    wire: GarmentWire,
+    resolver: SyncIdResolver,
+) {
+    val current = garmentDao.getWithRelations(garmentId) ?: return
+    val occasionIds = current.occasions.map { it.occasionId }.toMutableSet()
+    wire.occasionSyncIds.forEach { syncId ->
+        resolver.resolveLocalId("occasions", syncId)?.let { occasionIds.add(it) }
+    }
+    garmentDao.clearOccasions(garmentId)
+    garmentDao.insertOccasions(occasionIds.map { GarmentOccasionCrossRef(garmentId, it) })
 }

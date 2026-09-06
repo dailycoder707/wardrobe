@@ -2,7 +2,6 @@ package com.wardrobe.app.feature.closet.home
 
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -17,9 +16,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Checkroom
-import androidx.compose.material.icons.outlined.SentimentSatisfied
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
@@ -43,7 +39,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.wardrobe.app.core.designsystem.theme.WardrobeElevation
 import com.wardrobe.app.core.designsystem.theme.WardrobeTheme
 import com.wardrobe.app.core.designsystem.theme.wardrobeShadow
-import com.wardrobe.app.core.ui.components.EmptyState
+import com.wardrobe.app.core.ui.components.AiActivityBanner
+import com.wardrobe.app.core.ui.components.AiActivityTone
 import com.wardrobe.app.core.ui.components.GarmentTile
 import com.wardrobe.app.core.ui.components.GarmentTileUiModel
 import com.wardrobe.app.core.ui.components.SectionHeader
@@ -62,6 +59,8 @@ fun HomeScreen(
     onTryOnRecommendation: (List<Long>) -> Unit,
     onTakePhoto: () -> Unit,
     onImportStarted: () -> Unit,
+    onOpenProfile: () -> Unit,
+    onOpenAiProviders: () -> Unit,
     modifier: Modifier = Modifier,
     onOpenDeveloperPanel: (() -> Unit)? = null,
     viewModel: HomeViewModel = hiltViewModel(),
@@ -91,6 +90,8 @@ fun HomeScreen(
             onTryOnRecommendation = onTryOnRecommendation,
             onAddFirstItem = { isAddSheetOpen = true },
             onResumeImport = onImportStarted,
+            onOpenProfile = onOpenProfile,
+            onOpenAiProviders = onOpenAiProviders,
             onOpenDeveloperPanel = onOpenDeveloperPanel,
             modifier = Modifier.padding(innerPadding),
         )
@@ -107,72 +108,7 @@ fun HomeScreen(
 
 @Suppress("LongParameterList")
 @Composable
-private fun HomeScreenBody(
-    state: HomeUiState,
-    assistantState: HomeAssistantUiState,
-    onOpenGarment: (Long) -> Unit,
-    onBrowseCloset: () -> Unit,
-    onOpenFavorites: () -> Unit,
-    onOpenSearch: () -> Unit,
-    onOpenInsights: () -> Unit,
-    onOpenRecommendations: () -> Unit,
-    onOpenTrips: () -> Unit,
-    onTryOnRecommendation: (List<Long>) -> Unit,
-    onAddFirstItem: () -> Unit,
-    onResumeImport: () -> Unit,
-    onOpenDeveloperPanel: (() -> Unit)?,
-    modifier: Modifier = Modifier,
-) {
-    when {
-        state.isLoading -> {
-            Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator()
-            }
-        }
-
-        state.error != null -> {
-            EmptyState(
-                icon = Icons.Outlined.SentimentSatisfied,
-                headline = "Something went wrong",
-                supportingText = state.error.orEmpty(),
-                modifier = modifier,
-            )
-        }
-
-        state.isEmpty -> {
-            EmptyState(
-                icon = Icons.Filled.Checkroom,
-                headline = "Your wardrobe is waiting",
-                supportingText = "Add your first garment to start building your closet.",
-                actionLabel = "Add your first item",
-                onAction = onAddFirstItem,
-                modifier = modifier,
-            )
-        }
-
-        else -> {
-            HomeContent(
-                state = state,
-                assistantState = assistantState,
-                onOpenGarment = onOpenGarment,
-                onBrowseCloset = onBrowseCloset,
-                onOpenFavorites = onOpenFavorites,
-                onOpenSearch = onOpenSearch,
-                onOpenInsights = onOpenInsights,
-                onOpenRecommendations = onOpenRecommendations,
-                onOpenTrips = onOpenTrips,
-                onTryOnRecommendation = onTryOnRecommendation,
-                onResumeImport = onResumeImport,
-                onOpenDeveloperPanel = onOpenDeveloperPanel,
-                modifier = modifier,
-            )
-        }
-    }
-}
-
-@Suppress("LongParameterList")
-@Composable
-private fun HomeContent(
+internal fun HomeContent(
     state: HomeUiState,
     assistantState: HomeAssistantUiState,
     onOpenGarment: (Long) -> Unit,
@@ -184,6 +120,8 @@ private fun HomeContent(
     onOpenTrips: () -> Unit,
     onTryOnRecommendation: (List<Long>) -> Unit,
     onResumeImport: () -> Unit,
+    onOpenProfile: () -> Unit,
+    onOpenAiProviders: () -> Unit,
     onOpenDeveloperPanel: (() -> Unit)?,
     modifier: Modifier = Modifier,
 ) {
@@ -195,7 +133,11 @@ private fun HomeContent(
                 .padding(horizontal = 24.dp, vertical = 32.dp),
         verticalArrangement = Arrangement.spacedBy(32.dp),
     ) {
-        HomeHeaderBlock(state = state, onOpenDeveloperPanel = onOpenDeveloperPanel)
+        HomeHeaderBlock(state = state, onOpenProfile = onOpenProfile, onOpenDeveloperPanel = onOpenDeveloperPanel)
+
+        assistantState.activeAiOperationLabel?.let { label ->
+            AiActivityBanner(label = label, tone = AiActivityTone.RUNNING)
+        }
 
         if (state.incompleteImportCount > 0) {
             ResumeImportBanner(count = state.incompleteImportCount, onClick = onResumeImport)
@@ -217,18 +159,12 @@ private fun HomeContent(
             )
         }
 
-        if (state.showWardrobeHealthCard && state.summary != null) {
-            WardrobeSummaryCard(state.summary)
-        }
-
-        WardrobeHealthScoreCard(
-            healthScore = assistantState.wardrobeHealthScore,
-            rotationScore = assistantState.rotationScore,
-            onClick = onOpenInsights,
+        HomeStatusCards(
+            state = state,
+            assistantState = assistantState,
+            onOpenInsights = onOpenInsights,
+            onOpenTrips = onOpenTrips,
         )
-        AttentionItemsCard(count = assistantState.itemsNeedingAttentionCount, onClick = onOpenInsights)
-        UpcomingTripReminderLine(reminder = assistantState.upcomingTripReminder, onClick = onOpenTrips)
-        LaundryReminderLine(count = assistantState.laundryReminderCount)
 
         HomeInsightsSection(insights = state.insights, onOpenGarment = onOpenGarment, onOpenInsights = onOpenInsights)
 
@@ -249,6 +185,9 @@ private fun HomeContent(
         if (state.recentlyWorn.isNotEmpty()) {
             GarmentSection(title = "Recently Worn", garments = state.recentlyWorn, onOpenGarment = onOpenGarment)
         }
+
+        CloudAiConfigurationPrompt(assistantState = assistantState, onOpenAiProviders = onOpenAiProviders)
+        RecentAiActivitySection(activity = assistantState.recentAiActivity)
     }
 }
 
@@ -269,32 +208,45 @@ private fun QuickActionsRow(
 @Composable
 private fun HomeHeaderBlock(
     state: HomeUiState,
+    onOpenProfile: () -> Unit,
     onOpenDeveloperPanel: (() -> Unit)?,
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        if (state.showGreeting && state.greeting.isNotBlank()) {
-            Text(text = state.greeting, style = MaterialTheme.typography.displayLarge)
-        } else {
-            Text(text = state.homeTitle, style = MaterialTheme.typography.displayLarge)
+    Row(
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.Top,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(
+                text = "Your AI Wardrobe Assistant",
+                style = MaterialTheme.typography.labelMedium,
+                color = WardrobeTheme.extendedColors.accent,
+            )
+            if (state.showGreeting && state.greeting.isNotBlank()) {
+                Text(text = state.greeting, style = MaterialTheme.typography.displayLarge)
+            } else {
+                Text(text = state.homeTitle, style = MaterialTheme.typography.displayLarge)
+            }
+            Text(
+                text = state.currentDateText,
+                style = MaterialTheme.typography.bodyMedium,
+                color = WardrobeTheme.extendedColors.textSecondary,
+                // A long-press here is the Developer Panel's only entry point
+                // (debug builds only, `onOpenDeveloperPanel` is null in
+                // release — see WardrobeNavHost) — deliberately unlabeled so
+                // it never reads as a discoverable feature to the app's one
+                // real user.
+                modifier =
+                    if (onOpenDeveloperPanel != null) {
+                        Modifier
+                            .combinedClickable(onClick = {}, onLongClick = onOpenDeveloperPanel)
+                            .semantics { contentDescription = state.currentDateText }
+                    } else {
+                        Modifier
+                    },
+            )
         }
-        Text(
-            text = state.currentDateText,
-            style = MaterialTheme.typography.bodyMedium,
-            color = WardrobeTheme.extendedColors.textSecondary,
-            // A long-press here is the Developer Panel's only entry point
-            // (debug builds only, `onOpenDeveloperPanel` is null in
-            // release — see WardrobeNavHost) — deliberately unlabeled so
-            // it never reads as a discoverable feature to the app's one
-            // real user.
-            modifier =
-                if (onOpenDeveloperPanel != null) {
-                    Modifier
-                        .combinedClickable(onClick = {}, onLongClick = onOpenDeveloperPanel)
-                        .semantics { contentDescription = state.currentDateText }
-                } else {
-                    Modifier
-                },
-        )
+        ProfileAvatarButton(avatarImageUri = state.avatarImageUri, onClick = onOpenProfile)
     }
 }
 
@@ -357,7 +309,7 @@ internal fun RecommendationPreviewCard(
 }
 
 @Composable
-private fun WardrobeSummaryCard(summary: WardrobeSummaryUiModel) {
+internal fun WardrobeSummaryCard(summary: WardrobeSummaryUiModel) {
     val shape = RoundedCornerShape(20.dp)
     ElevatedCard(
         shape = shape,

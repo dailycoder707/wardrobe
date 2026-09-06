@@ -66,11 +66,11 @@ class ImportQueueRepositoryImplTest {
             val item = repository.enqueue(listOf("/tmp/a.jpg")).single()
 
             repository.updateItem(
-                item.copy(status = ImportQueueItemStatus.REMOVING_BACKGROUND, stagingId = "staging-1"),
+                item.copy(status = ImportQueueItemStatus.EXTRACTING_GARMENT, stagingId = "staging-1"),
             )
 
             val reloaded = repository.observeQueue().first().single()
-            assertEquals(ImportQueueItemStatus.REMOVING_BACKGROUND, reloaded.status)
+            assertEquals(ImportQueueItemStatus.EXTRACTING_GARMENT, reloaded.status)
             assertEquals("staging-1", reloaded.stagingId)
         }
 

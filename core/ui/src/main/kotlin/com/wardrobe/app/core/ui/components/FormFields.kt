@@ -28,6 +28,7 @@ import androidx.compose.ui.unit.dp
  * `feature:capture`'s new metadata form can use the same field without
  * duplicating it (also backs [CategoryPicker]).
  */
+@Suppress("LongParameterList")
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun <T> DropdownField(
@@ -37,6 +38,12 @@ fun <T> DropdownField(
     onSelect: (T?) -> Unit,
     modifier: Modifier = Modifier,
     allowNone: Boolean = false,
+    /** M22 addition — an optional small caption under the field, e.g.
+     * "AI suggested" (Garment Review's flagship use case: distinguishing an
+     * AI-filled value from a manually-typed one at the point of the actual
+     * editable control, not just in a separate summary list). `null` (the
+     * default) renders exactly as before this parameter existed. */
+    helperText: String? = null,
 ) {
     var expanded by remember { mutableStateOf(false) }
     val selectedLabel = options.firstOrNull { it.first == selected }?.second.orEmpty()
@@ -47,6 +54,7 @@ fun <T> DropdownField(
             onValueChange = {},
             readOnly = true,
             label = { Text(label) },
+            supportingText = helperText?.let { { Text(it) } },
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
             modifier = Modifier.fillMaxWidth().menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable),
         )

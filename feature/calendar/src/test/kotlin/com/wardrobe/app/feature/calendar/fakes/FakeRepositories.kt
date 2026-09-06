@@ -1,10 +1,14 @@
 package com.wardrobe.app.feature.calendar.fakes
 
 import com.wardrobe.app.core.domain.repository.GarmentRepository
+import com.wardrobe.app.core.domain.repository.Location
 import com.wardrobe.app.core.domain.repository.OccasionRepository
 import com.wardrobe.app.core.domain.repository.OutfitRepository
+import com.wardrobe.app.core.domain.repository.StatsRepository
+import com.wardrobe.app.core.domain.repository.StylingEngineRepository
 import com.wardrobe.app.core.domain.repository.WardrobeIntelligenceRepository
 import com.wardrobe.app.core.domain.repository.WearEventRepository
+import com.wardrobe.app.core.domain.repository.WeatherRepository
 import com.wardrobe.app.core.model.common.BrandId
 import com.wardrobe.app.core.model.common.CategoryId
 import com.wardrobe.app.core.model.common.DateRange
@@ -12,6 +16,7 @@ import com.wardrobe.app.core.model.common.GarmentId
 import com.wardrobe.app.core.model.common.OccasionId
 import com.wardrobe.app.core.model.common.OutfitId
 import com.wardrobe.app.core.model.common.WearEventId
+import com.wardrobe.app.core.model.garment.DressCode
 import com.wardrobe.app.core.model.garment.Garment
 import com.wardrobe.app.core.model.garment.GarmentFilter
 import com.wardrobe.app.core.model.garment.GarmentStatus
@@ -28,8 +33,24 @@ import com.wardrobe.app.core.model.intelligence.WardrobeHealthScore
 import com.wardrobe.app.core.model.outfit.Occasion
 import com.wardrobe.app.core.model.outfit.Outfit
 import com.wardrobe.app.core.model.outfit.OutfitFilter
+import com.wardrobe.app.core.model.outfit.OutfitSlot
+import com.wardrobe.app.core.model.stats.ClosetGap
+import com.wardrobe.app.core.model.stats.CostPerWearEntry
+import com.wardrobe.app.core.model.stats.DormantItem
+import com.wardrobe.app.core.model.stats.RepeatedOutfit
+import com.wardrobe.app.core.model.stats.StatsWindow
+import com.wardrobe.app.core.model.stats.UsageStats
+import com.wardrobe.app.core.model.stats.WardrobeMixDistribution
+import com.wardrobe.app.core.model.stats.WardrobeUsageGaps
+import com.wardrobe.app.core.model.stats.WearHeatmapDay
+import com.wardrobe.app.core.model.styling.AccessoryCategory
+import com.wardrobe.app.core.model.styling.JewelryCategory
+import com.wardrobe.app.core.model.styling.RecommendationRunDiagnostics
+import com.wardrobe.app.core.model.styling.ScoredOutfit
+import com.wardrobe.app.core.model.styling.SuggestionContext
 import com.wardrobe.app.core.model.wear.WearEvent
 import com.wardrobe.app.core.model.wear.WearEventStatus
+import com.wardrobe.app.core.model.weather.WeatherSnapshot
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -156,8 +177,16 @@ class FakeWearEventRepository(
     private val flow = MutableStateFlow(initial)
     private var nextId = (initial.maxOfOrNull { it.id.value } ?: 0L) + 1
 
+    /** M22 regression test hook: simulates a real repository-flow failure so
+     * `CalendarViewModel.uiState`'s error boundary can be proven, rather
+     * than asserted from reading the code alone. */
+    var observeEventsError: Throwable? = null
+
     override fun observeEvents(range: DateRange): Flow<List<WearEvent>> =
-        flow.map { events -> events.filter { !it.date.isBefore(range.start) && !it.date.isAfter(range.end) } }
+        flow.map { events ->
+            observeEventsError?.let { throw it }
+            events.filter { !it.date.isBefore(range.start) && !it.date.isAfter(range.end) }
+        }
 
     override suspend fun logWear(event: WearEvent): WearEventId {
         val stored = if (event.id.value == 0L) event.copy(id = WearEventId(nextId++)) else event
@@ -224,4 +253,121 @@ class FakeWardrobeIntelligenceRepository : WardrobeIntelligenceRepository {
         today: LocalDate,
         greeting: String,
     ): DailyBrief = DailyBrief(greeting, null, null, null, emptyList())
+}
+
+/** M20 — always returns [suggestions] verbatim regardless of [SuggestionContext],
+ * mirroring `feature:outfits`' own `FakeStylingEngineRepository` (M19)
+ * exactly: `CalendarViewModelTest` only needs to verify it wires the
+ * engine's output into Day Detail's recommendation state correctly, not
+ * re-verify the rule engine itself. */
+class FakeStylingEngineRepository(
+    var suggestions: List<ScoredOutfit> = emptyList(),
+) : StylingEngineRepository {
+    var lastRequestedCount: Int = 0
+    var lastContext: SuggestionContext? = null
+    var suggestionsForCount: ((Int) -> List<ScoredOutfit>)? = null
+    var errorToThrow: Throwable? = null
+
+    override suspend fun suggestOutfits(
+        context: SuggestionContext,
+        count: Int,
+    ): List<ScoredOutfit> {
+        errorToThrow?.let { throw it }
+        lastRequestedCount = count
+        lastContext = context
+        return suggestionsForCount?.invoke(count) ?: suggestions
+    }
+
+    override suspend fun suggestForItem(
+        garmentId: GarmentId,
+        context: SuggestionContext,
+    ): List<ScoredOutfit> = suggestions
+
+    override suspend fun suggestReplacementForSlot(
+        outfit: Outfit,
+        slot: OutfitSlot,
+        context: SuggestionContext,
+    ): GarmentId? = null
+
+    override suspend fun suggestReplacementForAccessory(
+        outfit: Outfit,
+        category: AccessoryCategory,
+        excludingGarmentId: GarmentId,
+        context: SuggestionContext,
+    ): GarmentId? = null
+
+    override suspend fun suggestReplacementForJewelry(
+        outfit: Outfit,
+        category: JewelryCategory,
+        excludingGarmentId: GarmentId,
+        context: SuggestionContext,
+    ): GarmentId? = null
+
+    override fun lastRunDiagnostics(): RecommendationRunDiagnostics = RecommendationRunDiagnostics()
+}
+
+class FakeWeatherRepository(
+    var snapshot: WeatherSnapshot? = null,
+) : WeatherRepository {
+    override suspend fun getForecast(
+        location: Location,
+        date: LocalDate,
+    ): WeatherSnapshot = snapshot ?: error("FakeWeatherRepository.getForecast called with no snapshot configured")
+
+    override suspend fun getForecastForConfiguredLocation(date: LocalDate): WeatherSnapshot? = snapshot
+}
+
+class FakeStatsRepository(
+    initial: List<CostPerWearEntry> = emptyList(),
+) : StatsRepository {
+    private val costPerWearFlow = MutableStateFlow(initial)
+
+    fun setCostPerWear(entries: List<CostPerWearEntry>) {
+        costPerWearFlow.value = entries
+    }
+
+    override fun observeUsageStats(window: StatsWindow): Flow<UsageStats> =
+        costPerWearFlow.map { entries ->
+            UsageStats(
+                window = window,
+                totalActiveGarments = entries.size,
+                wornAtLeastOnce = entries.count { it.totalWearCount > 0 },
+                usagePercent = 0.0,
+                mostWornGarmentIds = emptyList(),
+                leastWornGarmentIds = emptyList(),
+                favouriteBrandIds = emptyList(),
+                signatureColorIds = emptyList(),
+                favouriteCategoryIds = emptyList(),
+                wearsBySeason = emptyMap(),
+                wearsByDressCode = emptyMap(),
+                weekdayWearCount = 0,
+                weekendWearCount = 0,
+            )
+        }
+
+    override fun observeCostPerWear(): Flow<List<CostPerWearEntry>> = costPerWearFlow.asStateFlow()
+
+    override fun observeDormantItems(window: StatsWindow): Flow<List<DormantItem>> = flowOf(emptyList())
+
+    override fun observeClosetGaps(): Flow<List<ClosetGap>> = flowOf(emptyList())
+
+    override fun observeWearHeatmap(range: DateRange): Flow<List<WearHeatmapDay>> = flowOf(emptyList())
+
+    override fun observeRepeatedOutfits(
+        window: StatsWindow,
+        limit: Int,
+    ): Flow<List<RepeatedOutfit>> = flowOf(emptyList())
+
+    override fun observeWardrobeUsageGaps(): Flow<WardrobeUsageGaps> =
+        flowOf(WardrobeUsageGaps(emptyList(), emptyList()))
+
+    override fun observeOutfitWearEventCount(window: StatsWindow): Flow<Int> = flowOf(0)
+
+    override fun observeTopDressCode(
+        window: StatsWindow,
+        isWeekend: Boolean,
+    ): Flow<DressCode?> = flowOf(null)
+
+    override fun observeWardrobeMixDistribution(): Flow<WardrobeMixDistribution> =
+        flowOf(WardrobeMixDistribution(emptyList(), emptyList(), emptyList(), 0))
 }

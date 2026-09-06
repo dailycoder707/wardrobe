@@ -9,7 +9,18 @@ style:
     # Compose dimension/alpha literals (padding, weights, elevation) and design
     # tokens (hex color literals, type scale sizes) are the common case that
     # trips this rule constantly for no real benefit in UI/design-system code.
-    excludes: ["**/ui/**", "**/*Screen.kt", "**/*Theme.kt", "**/designsystem/theme/**"]
+    # NamedColorPalette (Add-to-Wardrobe v2, core:ai) is the same category of
+    # file — a fixed reference table of RGB literals that name themselves
+    # (the constant IS the name, e.g. `NamedColor("Red", 200, 30, 30)`), not
+    # unexplained numbers buried in logic.
+    excludes:
+      [
+        "**/ui/**",
+        "**/*Screen.kt",
+        "**/*Theme.kt",
+        "**/designsystem/theme/**",
+        "**/metadata/NamedColorPalette.kt",
+      ]
 
 complexity:
   LongParameterList:

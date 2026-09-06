@@ -140,6 +140,28 @@ category. Do not reproduce any third party's proprietary text or design.
     See `docs/adr/ADR-011-permanent-privacy-first-principles.md` for the
     full reasoning and consequences.
 
+    **Amendment (added 2026-08-05, see
+    `docs/adr/ADR-012-cloud-ai-provider-amendment.md`)**: rules 1, 2, 5, 6,
+    and 10 above are superseded for this deployment. This is a private,
+    single-household application (the user and their spouse only), and the
+    user has knowingly chosen Alta-level AI quality over strict
+    offline-only operation. Cloud AI providers (OpenAI, Azure OpenAI,
+    Gemini, Claude, OpenRouter, Ollama, or a self-hosted generic REST
+    backend) are now permitted, **but only**:
+    - through this project's own vendor-neutral AI Gateway + per-vendor
+      provider-adapter architecture (`core:ai`) — no vendor SDK or
+      vendor-specific request/response logic outside an adapter file, and
+      no feature module ever depends on a vendor directly;
+    - behind explicit, informed per-capability user consent (not a buried
+      toggle) before any photo is sent off-device;
+    - with an on-device implementation always present as the default and
+      automatic fallback for every capability;
+    - with API keys stored via Android Keystore-backed encrypted storage,
+      never hardcoded or committed.
+    Rules 3, 4, 7, 8, and 9 are unaffected — recommendations/outfit
+    generation still work fully offline, no accounts, local-network-only
+    sync, contextual data usage unchanged.
+
 **Quality bar for the styling engine.** The single most common failure in this product
 category is weather-inappropriate suggestions (recommending blazers and knits in 35°C,
 calling silk "breathable"). Any outfit suggestion must pass a hard weather filter before

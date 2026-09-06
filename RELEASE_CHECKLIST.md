@@ -1,11 +1,18 @@
 # Play Store Release Checklist
 
-This is a checklist for a *future* release, written now while the constraints
-(no cloud, no accounts, offline-first — ADR-003/004) are fresh, so release-time
-decisions (like the Data Safety form) are easy and honest rather than guessed under
-deadline pressure. Nothing here is done yet — this project is at the end of Phase 2.1,
-with no features implemented. Treat every box as unchecked until actually verified,
-the same discipline `BUILD_VERIFICATION.md` already applied to the build itself.
+Originally written at Phase 2.1 (no features implemented yet) while the
+constraints (no cloud, no accounts, offline-first — ADR-003/004) were
+fresh. **Updated at RC1** (Production Hardening & Release Candidate,
+2026-08-06): the app now has real features, including ADR-012's opt-in
+cloud AI amendment — see the RC1 notes inline below wherever the original
+Phase-2.1 assumption ("no user data collected or shared," in particular)
+no longer holds unconditionally. Every box not explicitly marked done
+below is still genuinely unverified — this checklist does not claim a
+physical device or a live Play Console listing exists, because neither
+does in this development environment. See `SECURITY_AUDIT.md` and
+`PRODUCTION_VALIDATION_REPORT.md` for what *has* been verified so far
+(automated tests and code inspection) and what's left for a real device
+and a real Play Console session.
 
 ## 1. Versioning & signing
 
@@ -23,17 +30,23 @@ the same discipline `BUILD_VERIFICATION.md` already applied to the build itself.
 
 ## 2. Build correctness
 
-- [ ] `./gradlew clean build` passes with zero Lint/ktlint/Detekt issues
-      (`BUILD_VERIFICATION.md`'s bar, re-verified fresh, not assumed still true)
+- [x] `./gradlew clean build` passes with zero Lint/ktlint/Detekt issues —
+      re-verified fresh as of RC1 (2026-08-06), not assumed still true; re-run it
+      again immediately before actually uploading, since this box goes stale the
+      moment another commit lands
 - [ ] R8/minification (`isMinifyEnabled`, `isShrinkResources`) verified against the
       **actual release build**, not just configured — install the release APK/AAB on a
       real device and exercise every screen; R8 stripping a class Room/Hilt/
       kotlinx.serialization needed reflectively is a real, silent-until-runtime failure
-      mode
-- [ ] `proguard-rules.pro` reviewed — still close to empty (per its own comment) unless
-      a real R8-stripped crash proved a specific rule necessary
+      mode. **Configuration itself confirmed correct** (`app/build.gradle.kts`: both
+      flags on, `proguard-rules.pro` minimal and Kotlin-metadata-aware) — the *runtime*
+      verification on a real device is still open
+- [x] `proguard-rules.pro` reviewed — still close to empty (per its own comment); no
+      R8-stripped crash has ever surfaced to justify adding a rule
 - [ ] Baseline profile generated and bundled (`benchmark/README.md` — needs a connected
-      device; not part of the default build)
+      device; not part of the default build). **Still not done** — `benchmark` has no
+      `StartupBenchmark`/macrobenchmark test classes written yet either (its own
+      README has said so since Phase 2; still true at RC1)
 - [ ] Built as an **Android App Bundle (.aab)**, not a universal APK, for the actual
       Play Store upload
 
@@ -63,27 +76,42 @@ the same discipline `BUILD_VERIFICATION.md` already applied to the build itself.
 ## 4. Permissions & privacy
 
 - [ ] Every permission declared in `AndroidManifest.xml` (`CAMERA`,
-      `READ_EXTERNAL_STORAGE` maxSdk 32, `ACCESS_COARSE_LOCATION`, `INTERNET`) is
-      actually used by shipped code — remove any that aren't, since an unused
-      dangerous permission is both a Play Console review flag and a user-trust cost
+      `READ_EXTERNAL_STORAGE` maxSdk 32, `ACCESS_COARSE_LOCATION`, `INTERNET`,
+      `ACCESS_NETWORK_STATE`/`ACCESS_WIFI_STATE`/`CHANGE_WIFI_MULTICAST_STATE` for
+      local-network sync) is actually used by shipped code — remove any that
+      aren't, since an unused dangerous permission is both a Play Console review
+      flag and a user-trust cost. Verified present-and-used as of RC1; re-check at
+      actual release time in case anything changed since
 - [ ] Runtime permission rationale UI exists and was tested for camera, location, and
       (pre-33) storage — a bare OS permission dialog with no context is a real UX and
       review-risk gap
-- [ ] **Play Console Data Safety form** completed and cross-checked against ADR-004: as
-      of this project's current scope (no accounts, no analytics, no ad SDK, no crash
-      SDK, no data leaves the device except the Open-Meteo weather call which sends no
-      personal data — only coarse location or a manually-picked city), the honest
-      answer is "no user data collected or shared." Re-verify this section against
-      whatever the app *actually does* at release time, not against this document —
-      if a future feature changes this, the form (and this checklist item) must change
-      with it
+- [ ] **Play Console Data Safety form** — **RC1 update: the Phase-2.1 answer below no
+      longer holds unconditionally.** With every AI capability left at its default
+      (on-device), the original answer stands: no accounts, no analytics, no ad SDK,
+      no crash SDK, no data leaves the device except the Open-Meteo weather call
+      (no personal data — only coarse location or a manually-picked city). **But**
+      ADR-012 added an opt-in path: if the user configures and consents to a cloud AI
+      provider for any capability (Garment Extraction/Reconstruction/Metadata, Outfit
+      Styling, Virtual Try-On), that capability *does* send data (a garment photo, or
+      for Styling a wardrobe-context fingerprint) to a third party the user chose and
+      explicitly consented to. The Data Safety form must reflect this as a real,
+      conditional data-sharing path — "shared with a third party the user configures
+      and consents to, only when cloud mode is enabled" — not silently glossed over
+      as "no data collected." Complete the form against what the shipped build
+      actually does, not against the pre-M12 assumption
 - [ ] Privacy policy published and linked in the store listing, matching the Data
-      Safety form exactly — required by Play Console regardless of how little data is
-      collected
+      Safety form exactly (including the RC1 cloud-AI conditional-sharing note above)
+      — required by Play Console regardless of how little data is collected by default
 - [ ] `backup_rules.xml`/`data_extraction_rules.xml` re-verified against the actual
-      shipped data model (ADR-009) — if Phase 3+ adds new local storage locations
-      (new DataStore files, new file directories), confirm they're covered by the
-      exclusion rules before release, not discovered after
+      shipped data model (ADR-009) — **done as of RC1** (`SECURITY_AUDIT.md` §1): both
+      already excluded all SharedPreferences (including `EncryptedApiKeyStore`) from
+      cloud backup; RC1 additionally excluded that same file from device-transfer,
+      since its Keystore-bound master key can't itself transfer. Re-verify again if a
+      future release adds any new local storage location
+- [ ] API key security reviewed — **done as of RC1**, see `SECURITY_AUDIT.md` §1 in
+      full: never logged, never in a crash report (none exists), never in Room or
+      DataStore, always read through `EncryptedApiKeyStore`, excluded from both backup
+      channels
 
 ## 5. Store listing
 

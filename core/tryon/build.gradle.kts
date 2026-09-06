@@ -25,6 +25,9 @@ kotlin {
 
 dependencies {
     implementation(project(":core:model"))
+    // OnDeviceVirtualTryOnEngine (M12) implements core:ai's VirtualTryOnEngine —
+    // the dependency points this way only, core:ai never depends on core:tryon.
+    implementation(project(":core:ai"))
 
     implementation(libs.androidx.camera.core)
     implementation(libs.androidx.camera.camera2)

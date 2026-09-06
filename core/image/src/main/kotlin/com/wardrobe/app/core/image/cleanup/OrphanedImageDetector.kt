@@ -10,12 +10,25 @@ import java.time.Instant
  */
 object OrphanedImageDetector {
     /** Files present on disk with no matching `image_metadata.filePath` row —
-     * only possible after a crash/interruption, since normal writes and DB
-     * inserts happen together (`ImageRepositoryImpl.commitStagedImage`). */
+     * normally only possible after a crash/interruption. [olderThan] is a
+     * required safety margin, not an optimization: `ImageRepositoryImpl.
+     * commitStagedImage` moves a garment's files into their final location
+     * and *then* inserts the matching `image_metadata` rows — a real (if
+     * narrow, millisecond-scale) window where a legitimately-just-committed
+     * file exists on disk with no row yet. Without an age check, this
+     * periodic sweep running during that exact window would misidentify a
+     * brand-new, valid file as an orphan and delete it — real, silent data
+     * loss for a photo the user just saved. Requiring the file to already be
+     * older than [olderThan] makes that practically impossible while still
+     * catching genuine, long-lived orphans. */
     fun findOrphans(
         referencedPaths: Set<String>,
         filesOnDisk: List<File>,
-    ): List<File> = filesOnDisk.filter { it.path !in referencedPaths }
+        olderThan: Instant,
+    ): List<File> =
+        filesOnDisk.filter { file ->
+            file.path !in referencedPaths && Instant.ofEpochMilli(file.lastModified()).isBefore(olderThan)
+        }
 
     /** Staging directories older than [olderThan] with no corresponding
      * commit/discard — the user captured a photo, then closed or killed the

@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Checkroom
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
@@ -22,9 +21,7 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Sort
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.SearchOff
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
@@ -37,7 +34,6 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -50,18 +46,12 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.wardrobe.app.core.designsystem.theme.WardrobeTheme
+import com.wardrobe.app.core.ui.components.ClosetGridSkeleton
 import com.wardrobe.app.core.ui.components.ConfirmationToastHost
 import com.wardrobe.app.core.ui.components.ConfirmationToastState
 import com.wardrobe.app.core.ui.components.EmptyState
+import com.wardrobe.app.core.ui.components.WardrobeFilterChip
 import com.wardrobe.app.core.ui.components.rememberConfirmationToastState
-
-/** [onTakePhoto]/[onImportStarted] bagged since a single-callback-per-line
- * signature would push this composable's parameter count over detekt's
- * threshold once combined with the screen's other navigation/state params. */
-data class ClosetAddActions(
-    val onTakePhoto: () -> Unit,
-    val onImportStarted: () -> Unit,
-)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -82,25 +72,13 @@ fun ClosetScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
 
-    LaunchedEffect(Unit) {
-        if (initialFavoriteFilter) viewModel.onFiltersChange(ClosetFilterState.EMPTY.copy(favoriteOnly = true))
-    }
-    LaunchedEffect(state.toastMessage) {
-        state.toastMessage?.let {
-            toastState.show(it)
-            viewModel.onToastShown()
-        }
-    }
+    ClosetScreenEffects(state, viewModel, toastState, initialFavoriteFilter)
 
     Scaffold(
         modifier = modifier,
         snackbarHost = { SnackbarHost(snackbarHostState) },
         floatingActionButton = {
-            if (!state.isSelectionMode) {
-                FloatingActionButton(onClick = { isAddSheetOpen = true }) {
-                    Icon(Icons.Filled.Add, contentDescription = "Add to Wardrobe")
-                }
-            }
+            ClosetAddFab(visible = !state.isSelectionMode, onClick = { isAddSheetOpen = true })
         },
         topBar = {
             ClosetScreenTopBar(
@@ -123,6 +101,7 @@ fun ClosetScreen(
             toastState = toastState,
             onOpenGarment = onOpenGarment,
             onAddFirstItem = { isAddSheetOpen = true },
+            onOpenFilters = { isFilterSheetOpen = true },
             viewModel = viewModel,
         )
     }
@@ -176,6 +155,7 @@ private fun ClosetScreenTopBar(
     }
 }
 
+@Suppress("LongParameterList")
 @Composable
 private fun ClosetScreenBody(
     state: ClosetUiState,
@@ -183,6 +163,7 @@ private fun ClosetScreenBody(
     toastState: ConfirmationToastState,
     onOpenGarment: (Long) -> Unit,
     onAddFirstItem: () -> Unit,
+    onOpenFilters: () -> Unit,
     viewModel: ClosetViewModel,
 ) {
     Box(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
@@ -194,8 +175,18 @@ private fun ClosetScreenBody(
                     onFiltersChange = viewModel::onFiltersChange,
                     onClearAll = viewModel::onClearFilters,
                 )
+            } else if (state.insights.isNotEmpty()) {
+                ClosetInsightsRow(insights = state.insights, onInsightClick = viewModel::onFiltersChange)
             }
-            ClosetScreenContent(state, onOpenGarment, onAddFirstItem, viewModel)
+            if (!state.isLoading && !state.isEmptyCloset) {
+                Text(
+                    text = state.resultCountLabel,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = WardrobeTheme.extendedColors.textSecondary,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                )
+            }
+            ClosetScreenContent(state, onOpenGarment, onAddFirstItem, onOpenFilters, viewModel)
         }
 
         ConfirmationToastHost(
@@ -210,13 +201,15 @@ private fun ClosetScreenContent(
     state: ClosetUiState,
     onOpenGarment: (Long) -> Unit,
     onAddFirstItem: () -> Unit,
+    onOpenFilters: () -> Unit,
     viewModel: ClosetViewModel,
 ) {
     when {
+        // M22 fix: ClosetGridSkeleton was built specifically for this screen
+        // (matching its own column count) but was never actually wired in —
+        // this replaces the generic spinner with the real skeleton.
         state.isLoading -> {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator()
-            }
+            ClosetGridSkeleton(columns = state.gridColumnCount, modifier = Modifier.fillMaxSize())
         }
 
         state.isEmptyCloset -> {
@@ -233,10 +226,12 @@ private fun ClosetScreenContent(
         state.isEmptyResult -> {
             EmptyState(
                 icon = Icons.Outlined.SearchOff,
-                headline = "No matches",
-                supportingText = "Try a different search or clear your filters.",
+                headline = "Nothing matches these filters.",
+                supportingText = "Try a different search or adjust your filters.",
                 actionLabel = if (state.filters.activeCount > 0) "Clear filters" else null,
                 onAction = viewModel::onClearFilters,
+                secondaryActionLabel = if (state.filters.activeCount > 0) "Modify filters" else null,
+                onSecondaryAction = onOpenFilters,
                 modifier = Modifier.fillMaxSize(),
             )
         }

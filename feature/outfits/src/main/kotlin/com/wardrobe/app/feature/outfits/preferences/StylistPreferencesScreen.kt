@@ -14,12 +14,12 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.wardrobe.app.core.model.styling.RecommendationPreferences
 
 private data class PreferenceToggle(
@@ -34,7 +34,7 @@ fun StylistPreferencesScreen(
     modifier: Modifier = Modifier,
     viewModel: StylistPreferencesViewModel = hiltViewModel(),
 ) {
-    val prefs by viewModel.preferences.collectAsState()
+    val prefs by viewModel.preferences.collectAsStateWithLifecycle()
 
     Scaffold(
         modifier = modifier,

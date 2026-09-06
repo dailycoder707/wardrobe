@@ -64,9 +64,41 @@ plugins built on AGP's built-in Kotlin support) before upgrading past AGP 9.
 | Retrofit (+ kotlinx-serialization converter) | 3.0.0 | Latest stable |
 | OkHttp (+ logging-interceptor) | 5.4.0 | Latest stable — an earlier check under-reported 5.1.0/5.0.0-alpha as latest from an incomplete search result; the real Maven Central metadata shows 5.x went stable and is now at 5.4.0 |
 
-This is deliberately the **only** module with a network dependency. Do not add another
-API client anywhere else without first revisiting the zero-cost/offline budget-posture
-decision in `alta-class-closet-app-master-prompt.md` Section 0.
+Until 2026-08-05 this was deliberately the **only** module with a network
+dependency. `core:ai` (below) is now a second, added deliberately under
+ADR-012's amendment to the privacy/offline principles — not a quiet
+loosening of this rule. Any *other* module still needs to revisit the
+zero-cost/offline budget-posture decision in
+`alta-class-closet-app-master-prompt.md` Section 0 before adding a network
+client.
+
+## On-device ML Kit (`core:image` / `core:tryon`)
+
+**Added to this file at RC1** (a pre-existing documentation gap found during
+RC1's dependency audit — both were already in use, just never written up
+here):
+
+| Dependency | Version | Why |
+|---|---|---|
+| com.google.android.gms:play-services-mlkit-subject-segmentation | 16.0.0-beta1 | Only version Google has published (no stable release exists yet, confirmed against the real Maven group-index) — backs `MlKitBackgroundRemover` (Phase 5b); see `TECHNICAL_DEBT.md` item 6 for the still-open on-device-vs-real-photo verification gap this carries |
+| com.google.mlkit:pose-detection | 18.0.0-beta5 | Same reason — no stable release exists yet — backs `MlKitBodyAnchorEstimator` (Phase 10), a best-effort, always-overridable placement seed, never load-bearing |
+
+## AI Gateway (`core:ai` — Add-to-Wardrobe v2, ADR-012)
+
+| Dependency | Version | Why |
+|---|---|---|
+| Retrofit / OkHttp / kotlinx-serialization-json | same versions as `core:network` above | Reused, not re-picked — one client stack for both this app's outbound network surfaces |
+| androidx.security:security-crypto | 1.1.0 | Latest stable, confirmed against Google's real Maven metadata on 2026-08-05 (1.0.0-alpha01..1.1.0-beta01 precede it). Backs `EncryptedApiKeyStore` — this app's first "encrypt an arbitrary secret string" need; `core:sync`'s existing raw-`KeyStore` code is a signing key, not a secret-blob store, so this is a genuinely new capability, not a version bump of something already present |
+| com.google.mlkit:text-recognition | 16.0.1 | Latest stable, confirmed against Google's real Maven group-index on 2026-08-05 (16.0.0-beta1..6 precede it). On-device OCR backing `OnDeviceMetadataEngine`'s brand guess |
+| com.google.mlkit:face-detection | 16.1.7 | Latest stable, confirmed against Google's real Maven group-index on 2026-08-05. On-device only, backs `PrivacyPreprocessor`'s pre-upload face blur — never sent anywhere itself, purely a local transform before any cloud call |
+| androidx.work (runtime-ktx, hilt-work, hilt-compiler) | same versions as already used by `core:data` | Reused for `AiJobManager` — see `phase` plan doc for why WorkManager was chosen over a hand-rolled queue |
+
+No vendor SDK (an official OpenAI/Google/Anthropic client library) is added
+for any of the six named cloud providers — every adapter speaks plain HTTP
+via the Retrofit/OkHttp/kotlinx-serialization stack already used for
+weather, consistent with `DEPENDENCY_POLICY.md`'s cloud-AI carve-out
+preferring plain HTTP over an SDK that would bundle its own telemetry or
+require its own account/license beyond the user's own provider credentials.
 
 ## Image loading (core:ui — Coil)
 
@@ -81,12 +113,22 @@ local file (Phase 1 Section 17) — there is no remote image URL in this product
 
 | Dependency | Version | Why |
 |---|---|---|
-| JUnit4 | 4.13.2 | Standard, stable; used for most unit tests |
-| JUnit Jupiter (JUnit5) | 6.1.2 | Latest stable — available for tests that want it, though this project defaults to JUnit4 for consistency with Android instrumented-test tooling |
+| JUnit4 | 4.13.2 | Standard, stable; used for every unit test in this project |
 | MockK | 1.14.11 | Latest stable |
 | Turbine | 1.2.1 | Latest stable — Flow-testing, used against `core:domain`'s Flow-returning repository interfaces |
 | androidx.test (ext.junit, espresso-core, uiautomator) | 1.3.0 / 3.7.0 / 2.4.0 | Latest stable of each |
 | Robolectric | 4.16.1 | Latest stable (not 4.17, which is still beta) |
+
+**RC1 dependency audit (2026-08-06)**: `org.junit.jupiter:junit-jupiter`
+(JUnit5) was declared in the version catalog with its own alias but never
+actually applied by any module's `build.gradle.kts` — a genuinely unused
+dependency, not a "kept for later" one, removed. `androidx.test.uiautomator`
+(`benchmark` module only) has no current call site either, but is kept: it's
+scaffolding for the macrobenchmark test classes `benchmark/README.md` already
+discloses don't exist yet, not dead weight from something that used to exist.
+Every other dependency in this file was cross-checked against a real
+`implementation`/`testImplementation`/etc. call site and confirmed still in
+active use; no duplicate or obsolete library was found.
 
 ## Why some choices were rejected
 

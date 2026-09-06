@@ -22,3 +22,5 @@ that supersedes it and says so explicitly, rather than editing history.
 | [009](ADR-009-backup-exclusion.md) | Exclude App Data from Android Auto Backup's Cloud Channel | Accepted |
 | [010](ADR-010-navigation-strategy.md) | Type-Safe Navigation-Compose Across Feature Modules | Accepted |
 | [011](ADR-011-permanent-privacy-first-principles.md) | Permanent Privacy-First, Offline-First Product Principles | Accepted |
+| [012](ADR-012-cloud-ai-provider-amendment.md) | Amending the Permanent Privacy Principles to Allow Pluggable Cloud AI | Accepted |
+| [013](ADR-013-m12-cloud-styling-and-tryon.md) | Cloud Outfit Styling and Cloud Virtual Try-On (M12) | Accepted |

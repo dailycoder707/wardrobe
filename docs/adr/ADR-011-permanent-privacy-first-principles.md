@@ -1,7 +1,15 @@
 # ADR-011: Permanent Privacy-First, Offline-First Product Principles
 
 **Status**: Accepted (Constitution rule 13, `alta-class-closet-app-master-prompt.md`,
-added 2026-08-03, after Phase 9, before Phase 10)
+added 2026-08-03, after Phase 9, before Phase 10). **Amended 2026-08-05 by
+[ADR-012](ADR-012-cloud-ai-provider-amendment.md)** — rules 1, 2, 5, 6, and
+10 below no longer read as absolute; see ADR-012 for the current, binding
+text of those rules (cloud AI is now permitted through a vendor-neutral
+provider architecture with explicit consent and secure key storage, for
+this specific private/single-household deployment). Rules 3, 4, 7, 8, and 9
+are unaffected. The rest of this document is kept as-written for historical
+context — it accurately describes the reasoning behind the original,
+stricter rule set.
 
 ## Context
 

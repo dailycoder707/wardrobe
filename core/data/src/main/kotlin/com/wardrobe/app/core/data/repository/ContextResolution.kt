@@ -8,6 +8,7 @@ import com.wardrobe.app.core.domain.repository.WearEventRepository
 import com.wardrobe.app.core.domain.repository.WeatherRepository
 import com.wardrobe.app.core.model.common.DateRange
 import com.wardrobe.app.core.model.common.GarmentId
+import com.wardrobe.app.core.model.common.OccasionId
 import com.wardrobe.app.core.model.garment.DressCode
 import com.wardrobe.app.core.model.outfit.impliedDressCode
 import com.wardrobe.app.core.model.styling.RecommendationRunDiagnostics
@@ -20,6 +21,8 @@ import kotlinx.coroutines.flow.first
 import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
+import java.time.format.DateTimeFormatter
+import java.time.format.FormatStyle
 
 /** Top-level, `StylingEngineRepositoryImpl`-only helpers for Phase 7's
  * context resolution — pulled out of that class specifically to keep its
@@ -28,6 +31,7 @@ import java.time.LocalDate
  * the sibling `styling` package already uses. */
 internal const val PLANNED_OUTFIT_SCORE = 100.0
 private const val LIMITED_CHOICES_PACKED_FRACTION = 0.5
+private val PLANNED_DATE_FORMATTER: DateTimeFormatter = DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM)
 
 /** [SuggestionContext.weather], if the caller already knows it (e.g. a
  * future trip day whose forecast was already fetched), always wins;
@@ -41,17 +45,23 @@ internal suspend fun resolveWeather(
 ): WeatherSnapshot? =
     suggestionContext.weather ?: weatherRepository.getForecastForConfiguredLocation(suggestionContext.date)
 
-/** Today's planned calendar occasion, if any, mapped to the dress code it
- * typically implies (`Occasion.impliedDressCode`, `core:model`) — `null`
- * when nothing is planned or the occasion's name doesn't map to a
- * recognizable dress code. */
+/** Today's occasion, mapped to the dress code it typically implies
+ * (`Occasion.impliedDressCode`, `core:model`) — `null` when nothing is
+ * known or the occasion's name doesn't map to a recognizable dress code.
+ *
+ * [explicitOccasionId] (M19 — [SuggestionContext.occasionId], previously
+ * declared on that type but never read by this resolver) always wins when
+ * present: a user who explicitly asks "give me a Work outfit" for this one
+ * run means exactly that, regardless of what the calendar happens to say.
+ * Falls back to today's planned Calendar occasion, unchanged from before. */
 internal suspend fun resolvePlannedOccasionDressCode(
     wearEventRepository: WearEventRepository,
     occasionRepository: OccasionRepository,
     date: LocalDate,
+    explicitOccasionId: OccasionId? = null,
 ): DressCode? {
     val occasionId =
-        wearEventRepository
+        explicitOccasionId ?: wearEventRepository
             .observeEvents(DateRange(date, date))
             .first()
             .firstOrNull { it.status == WearEventStatus.PLANNED && it.occasionId != null }
@@ -65,14 +75,23 @@ internal data class PlannedOutfitResolution(
     val plannedOutfitUsed: Boolean,
 )
 
-/** If today already has a planned, complete outfit (Calendar), it's
+/** If [date] already has a planned, complete outfit (Calendar), it's
  * surfaced first with its own plain-language explanation — "context
  * refines, never replaces" (Constitution rule 12): the freshly generated
- * suggestions still follow it, they're just not first. */
+ * suggestions still follow it, they're just not first.
+ *
+ * [today] disambiguates the explanation text: this function was originally
+ * only ever called with `date == today` (every caller built its
+ * [SuggestionContext] from `LocalDate.now(clock)`), so a hardcoded "for
+ * today" read correctly. M20's calendar-date recommendations call this with
+ * genuine future dates too, which would otherwise render the honest-looking
+ * but wrong "You already planned this outfit for today." on a day that
+ * isn't today. */
 internal suspend fun prependPlannedOutfit(
     wearEventRepository: WearEventRepository,
     outfitRepository: OutfitRepository,
     date: LocalDate,
+    today: LocalDate,
     generated: List<ScoredOutfit>,
 ): PlannedOutfitResolution {
     val plannedOutfitId =
@@ -83,11 +102,17 @@ internal suspend fun prependPlannedOutfit(
             ?.outfitId
     val plannedOutfit = plannedOutfitId?.let { outfitRepository.getOutfit(it) }
     return if (plannedOutfit != null) {
+        val explanation =
+            if (date == today) {
+                "You already planned this outfit for today."
+            } else {
+                "You already planned this outfit for ${date.format(PLANNED_DATE_FORMATTER)}."
+            }
         val entry =
             ScoredOutfit(
                 outfit = plannedOutfit,
                 score = PLANNED_OUTFIT_SCORE,
-                explanation = "You already planned this outfit for today.",
+                explanation = explanation,
                 passedWeatherFilter = true,
             )
         PlannedOutfitResolution(listOf(entry) + generated, true)

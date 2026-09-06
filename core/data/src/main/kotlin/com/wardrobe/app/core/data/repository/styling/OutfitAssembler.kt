@@ -183,7 +183,7 @@ private fun pickTorsoSlots(
  * [StyleRuleType.AVOID_BRAND] rules `buildSlotCandidates` already filtered on.
  * [StyleRuleType.CUSTOM] has no fixed parameter schema to auto-enforce — it's
  * shown to the user, not evaluated here (see this file's KDoc). */
-private fun passesWholeOutfitRules(
+internal fun passesWholeOutfitRules(
     garments: List<Garment>,
     input: EngineInput,
 ): Boolean {

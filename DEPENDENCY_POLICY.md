@@ -8,24 +8,53 @@ pins.
 
 ## Dependencies permanently out of scope
 
-Per Constitution rule 13 / [ADR-011](docs/adr/ADR-011-permanent-privacy-first-principles.md),
-the following categories are rejected on sight, with no case-by-case
-deliberation needed, regardless of how small, cheap, or convenient the
-integration would be:
+Per Constitution rule 13 / [ADR-011](docs/adr/ADR-011-permanent-privacy-first-principles.md)
+(as amended 2026-08-05 by [ADR-012](docs/adr/ADR-012-cloud-ai-provider-amendment.md)
+for cloud AI specifically — see the carve-out below), the following
+categories are rejected on sight, with no case-by-case deliberation needed,
+regardless of how small, cheap, or convenient the integration would be:
 
-- Any cloud LLM SDK or client (OpenAI, Gemini, Anthropic/Claude, or any
-  other hosted model API).
-- Any remote ML inference client — a model call that leaves the device is
-  out, full stop; on-device runtimes (ML Kit, TensorFlow Lite, ONNX
-  Runtime Mobile, and similar) remain allowed exactly as they already are
-  (`core:image`'s background removal).
+- **Cloud LLM/vision SDKs and remote ML inference clients are no longer a
+  blanket rejection** — see "Cloud AI dependencies" below for the narrow,
+  conditional carve-out ADR-012 introduced. A dependency in this category
+  still requires the Gateway/adapter isolation ADR-012 mandates; it is not
+  a free pass to add any vendor SDK anywhere in the codebase.
 - Any analytics or crash-reporting SDK that transmits data off-device
   (Firebase/Crashlytics and equivalents) — already excluded by ADR-004,
   restated here as a dependency-approval filter, not just an architecture
-  note.
+  note. **Unaffected by ADR-012** — this exclusion is about telemetry
+  phoning home automatically, not user-initiated AI processing calls.
 - Any backend-as-a-service client (Supabase, Firebase, AWS Amplify, or
   similar) for auth, storage, or sync — multi-device sync is local-network
-  only (Phase 8) and stays that way.
+  only (Phase 8) and stays that way. **Unaffected by ADR-012.**
+
+### Cloud AI dependencies (conditional carve-out, added 2026-08-05)
+
+A cloud AI vendor's HTTP API (OpenAI, Azure OpenAI, Gemini, Claude,
+OpenRouter, Ollama, or a self-hosted generic REST backend) may be
+integrated **only** when all of the following hold — otherwise it is
+rejected on sight exactly like before:
+
+- The integration lives entirely inside a `core:ai` `ProviderAdapter`
+  class for that vendor; no vendor-specific request/response shape or auth
+  scheme appears in any feature module or in `core:ai`'s own Gateway/router
+  layer.
+- The call is only ever reachable through `core:ai`'s `AiGateway`, gated by
+  the user's explicit per-capability consent and an on-device fallback.
+- No vendor SDK that requires an account, license, or bundles its own
+  telemetry is added — plain HTTP via the existing Retrofit/OkHttp/
+  kotlinx.serialization stack (already used for the weather API) is
+  preferred over an official vendor SDK, consistent with keeping the
+  dependency footprint vendor-neutral.
+- Still rejected regardless of the above: any dependency that adds
+  analytics/crash-reporting, requires a user account for *this app itself*
+  (as opposed to the user's own separately-held cloud vendor account), or
+  provides data storage/backup — those exclusions are untouched by ADR-012.
+
+On-device ML runtimes (ML Kit, TensorFlow Lite, ONNX Runtime Mobile, and
+similar) remain allowed exactly as before (`core:image`'s background
+removal, and the on-device providers `core:ai` adds alongside the cloud
+ones) — this was never part of what ADR-012 needed to change.
 
 ## Update cadence
 

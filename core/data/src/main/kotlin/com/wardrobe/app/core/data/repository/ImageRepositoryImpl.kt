@@ -22,9 +22,13 @@ import com.wardrobe.app.core.database.entity.ImageMetadataEntity
 import com.wardrobe.app.core.domain.repository.ImageProcessingProgress
 import com.wardrobe.app.core.domain.repository.ImageRepository
 import com.wardrobe.app.core.image.pipeline.GarmentImagePipeline
+import com.wardrobe.app.core.image.pipeline.retryEnhancement
+import com.wardrobe.app.core.image.pipeline.retryExtraction
+import com.wardrobe.app.core.image.pipeline.retryMetadata
 import com.wardrobe.app.core.image.storage.ImageFileStore
 import com.wardrobe.app.core.model.common.GarmentId
 import com.wardrobe.app.core.model.garment.ImageMetadata
+import com.wardrobe.app.core.model.garment.ImageRetryStage
 import com.wardrobe.app.core.model.garment.NormalizedRect
 import com.wardrobe.app.core.model.garment.ProcessingStage
 import com.wardrobe.app.core.model.garment.QualityReport
@@ -140,6 +144,23 @@ class ImageRepositoryImpl
 
         override suspend fun deleteImagesForGarment(garmentId: GarmentId) {
             withContext(Dispatchers.IO) { fileStore.deleteGarmentDirectory(garmentId.value) }
+        }
+
+        override suspend fun retryStage(
+            stagingId: String,
+            stage: ImageRetryStage,
+        ): StagedImage {
+            val previous = checkNotNull(stagedImageStore.peek(stagingId)) { "No staged image to retry for $stagingId" }
+            val updated =
+                withContext(Dispatchers.IO) {
+                    when (stage) {
+                        ImageRetryStage.EXTRACTION -> pipeline.retryExtraction(previous)
+                        ImageRetryStage.ENHANCEMENT -> pipeline.retryEnhancement(previous)
+                        ImageRetryStage.METADATA -> pipeline.retryMetadata(previous)
+                    }
+                }
+            stagedImageStore.put(updated)
+            return updated
         }
 
         private fun WorkInfo.toProcessingProgress(stagingId: String): ImageProcessingProgress =

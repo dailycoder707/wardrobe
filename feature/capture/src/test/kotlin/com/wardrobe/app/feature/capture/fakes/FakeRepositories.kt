@@ -3,23 +3,29 @@ package com.wardrobe.app.feature.capture.fakes
 import com.wardrobe.app.core.domain.repository.BrandRepository
 import com.wardrobe.app.core.domain.repository.CategoryRepository
 import com.wardrobe.app.core.domain.repository.ColorRepository
+import com.wardrobe.app.core.domain.repository.FabricRepository
 import com.wardrobe.app.core.domain.repository.GarmentRepository
 import com.wardrobe.app.core.domain.repository.MaterialRepository
+import com.wardrobe.app.core.domain.repository.OccasionRepository
 import com.wardrobe.app.core.domain.repository.TagRepository
 import com.wardrobe.app.core.model.common.BrandId
 import com.wardrobe.app.core.model.common.CategoryId
 import com.wardrobe.app.core.model.common.ColorId
+import com.wardrobe.app.core.model.common.FabricId
 import com.wardrobe.app.core.model.common.GarmentId
 import com.wardrobe.app.core.model.common.MaterialId
+import com.wardrobe.app.core.model.common.OccasionId
 import com.wardrobe.app.core.model.common.TagId
 import com.wardrobe.app.core.model.garment.Brand
 import com.wardrobe.app.core.model.garment.Category
 import com.wardrobe.app.core.model.garment.Color
+import com.wardrobe.app.core.model.garment.Fabric
 import com.wardrobe.app.core.model.garment.Garment
 import com.wardrobe.app.core.model.garment.GarmentFilter
 import com.wardrobe.app.core.model.garment.GarmentStatus
 import com.wardrobe.app.core.model.garment.Material
 import com.wardrobe.app.core.model.garment.Tag
+import com.wardrobe.app.core.model.outfit.Occasion
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -123,6 +129,26 @@ class FakeMaterialRepository(
     override fun observeAll(): Flow<List<Material>> = flow.asStateFlow()
 
     override suspend fun create(name: String): MaterialId = throw UnsupportedOperationException("not needed for tests")
+}
+
+class FakeFabricRepository(
+    initial: List<Fabric> = emptyList(),
+) : FabricRepository {
+    private val flow = MutableStateFlow(initial)
+
+    override fun observeAll(): Flow<List<Fabric>> = flow.asStateFlow()
+
+    override suspend fun create(name: String): FabricId = throw UnsupportedOperationException("not needed for tests")
+}
+
+class FakeOccasionRepository(
+    initial: List<Occasion> = emptyList(),
+) : OccasionRepository {
+    private val flow = MutableStateFlow(initial)
+
+    override fun observeAll(): Flow<List<Occasion>> = flow.asStateFlow()
+
+    override suspend fun create(name: String): OccasionId = throw UnsupportedOperationException("not needed for tests")
 }
 
 class FakeTagRepository(

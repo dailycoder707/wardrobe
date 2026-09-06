@@ -4,6 +4,7 @@ import com.wardrobe.app.core.domain.repository.ImageProcessingProgress
 import com.wardrobe.app.core.domain.repository.ImageRepository
 import com.wardrobe.app.core.model.common.GarmentId
 import com.wardrobe.app.core.model.garment.ImageMetadata
+import com.wardrobe.app.core.model.garment.ImageRetryStage
 import com.wardrobe.app.core.model.garment.NormalizedRect
 import com.wardrobe.app.core.model.garment.QualityReport
 import com.wardrobe.app.core.model.garment.StagedImage
@@ -18,6 +19,11 @@ class FakeImageRepository : ImageRepository {
     val committedStagingIds = mutableListOf<String>()
     val stagedImages = mutableMapOf<String, StagedImage>()
     var checksumOwner: GarmentId? = null
+    val retryStageCalls = mutableListOf<Pair<String, ImageRetryStage>>()
+
+    /** Tests configure this to return whatever the retried [StagedImage]
+     * should look like; defaults to leaving the staged image unchanged. */
+    var onRetryStage: (ImageRetryStage, StagedImage) -> StagedImage = { _, staged -> staged }
 
     override suspend fun analyzeQuality(sourceFilePath: String): QualityReport = QualityReport(emptyList())
 
@@ -49,4 +55,14 @@ class FakeImageRepository : ImageRepository {
     override fun observeImages(garmentId: GarmentId): Flow<List<ImageMetadata>> = flowOf(emptyList())
 
     override suspend fun deleteImagesForGarment(garmentId: GarmentId) = Unit
+
+    override suspend fun retryStage(
+        stagingId: String,
+        stage: ImageRetryStage,
+    ): StagedImage {
+        retryStageCalls += stagingId to stage
+        val updated = onRetryStage(stage, checkNotNull(stagedImages[stagingId]) { "No staged image for $stagingId" })
+        stagedImages[stagingId] = updated
+        return updated
+    }
 }

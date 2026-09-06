@@ -16,6 +16,7 @@ import com.wardrobe.app.core.model.stats.DormantItem
 import com.wardrobe.app.core.model.stats.RepeatedOutfit
 import com.wardrobe.app.core.model.stats.StatsWindow
 import com.wardrobe.app.core.model.stats.UsageStats
+import com.wardrobe.app.core.model.stats.WardrobeMixDistribution
 import com.wardrobe.app.core.model.stats.WearHeatmapDay
 import com.wardrobe.app.core.model.wear.WearEvent
 import com.wardrobe.app.core.model.wear.WearEventStatus
@@ -95,7 +96,24 @@ class InsightsBuildersLargeDatasetTest {
             (0 until HEATMAP_DAYS).map { offset -> WearHeatmapDay(start.plusDays(offset.toLong()), wearCount = 1) }
         val usage = usageStatsFixture()
 
-        val charts = buildCharts(usage, heatmap, DateRange(start, start.plusDays((HEATMAP_DAYS - 1).toLong())))
+        val charts =
+            buildCharts(
+                usage,
+                heatmap,
+                DateRange(start, start.plusDays((HEATMAP_DAYS - 1).toLong())),
+                distribution = WardrobeMixDistribution(emptyList(), emptyList(), emptyList(), 0),
+                ref =
+                    ReferenceData(
+                        garments = emptyList(),
+                        outfits = emptyList(),
+                        categoriesById = emptyMap(),
+                        brandsById = emptyMap(),
+                        colorsById = emptyMap(),
+                        materialsById = emptyMap(),
+                        fabricsById = emptyMap(),
+                        occasionsById = emptyMap(),
+                    ),
+            )
 
         assertEquals(HEATMAP_DAYS, charts.heatmapCells.size)
         assertTrue(charts.monthlyWear.isNotEmpty())

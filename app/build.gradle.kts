@@ -151,6 +151,8 @@ dependencies {
     implementation(project(":feature:settings"))
     implementation(project(":feature:widget"))
     implementation(project(":feature:tryon"))
+    implementation(project(":feature:capture"))
+    implementation(project(":feature:onboarding"))
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.activity.compose)
@@ -174,6 +176,10 @@ dependencies {
 
     implementation(libs.hilt.android)
     ksp(libs.hilt.android.compiler)
+    // M16 — WardrobeNavHost's own onboarding-gate ViewModel (OnboardingGateViewModel)
+    // is the first ViewModel `app` itself resolves via hiltViewModel(), not
+    // just a feature module.
+    implementation(libs.androidx.hilt.navigation.compose)
 
     implementation(libs.androidx.work.runtime.ktx)
     implementation(libs.androidx.hilt.work)

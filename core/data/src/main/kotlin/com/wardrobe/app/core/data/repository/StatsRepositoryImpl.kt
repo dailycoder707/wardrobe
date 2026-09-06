@@ -6,7 +6,10 @@ import com.wardrobe.app.core.model.common.BrandId
 import com.wardrobe.app.core.model.common.CategoryId
 import com.wardrobe.app.core.model.common.ColorId
 import com.wardrobe.app.core.model.common.DateRange
+import com.wardrobe.app.core.model.common.FabricId
 import com.wardrobe.app.core.model.common.GarmentId
+import com.wardrobe.app.core.model.common.MaterialId
+import com.wardrobe.app.core.model.common.OccasionId
 import com.wardrobe.app.core.model.common.OutfitId
 import com.wardrobe.app.core.model.garment.DressCode
 import com.wardrobe.app.core.model.garment.Season
@@ -14,11 +17,16 @@ import com.wardrobe.app.core.model.stats.CategoryWearCountEntry
 import com.wardrobe.app.core.model.stats.ClosetGap
 import com.wardrobe.app.core.model.stats.CostPerWearEntry
 import com.wardrobe.app.core.model.stats.DormantItem
+import com.wardrobe.app.core.model.stats.FabricDistributionEntry
 import com.wardrobe.app.core.model.stats.GarmentCombinationEntry
 import com.wardrobe.app.core.model.stats.GarmentVersatilityEntry
+import com.wardrobe.app.core.model.stats.MaterialDistributionEntry
+import com.wardrobe.app.core.model.stats.OccasionCoverageEntry
 import com.wardrobe.app.core.model.stats.RepeatedOutfit
 import com.wardrobe.app.core.model.stats.StatsWindow
 import com.wardrobe.app.core.model.stats.UsageStats
+import com.wardrobe.app.core.model.stats.WardrobeMixDistribution
+import com.wardrobe.app.core.model.stats.WardrobeUsageGaps
 import com.wardrobe.app.core.model.stats.WearHeatmapDay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
@@ -163,11 +171,13 @@ class StatsRepositoryImpl
             }
         }
 
-        override fun observeNeverWornOutfitIds(): Flow<List<OutfitId>> =
-            dao.observeNeverWornOutfitIds().map { ids -> ids.map(::OutfitId) }
-
-        override fun observeGarmentsMissingOutfits(): Flow<List<GarmentId>> =
-            dao.observeGarmentsMissingOutfitIds().map { ids -> ids.map(::GarmentId) }
+        override fun observeWardrobeUsageGaps(): Flow<WardrobeUsageGaps> =
+            combine(
+                dao.observeNeverWornOutfitIds(),
+                dao.observeGarmentsMissingOutfitIds(),
+            ) { neverWorn, missingOutfits ->
+                WardrobeUsageGaps(neverWorn.map(::OutfitId), missingOutfits.map(::GarmentId))
+            }
 
         override fun observeOutfitWearEventCount(window: StatsWindow): Flow<Int> {
             val start = windowStartDate(window, clock).toString()
@@ -185,6 +195,21 @@ class StatsRepositoryImpl
                 rows.firstOrNull()?.let { row -> runCatching { DressCode.valueOf(row.dressCode) }.getOrNull() }
             }
         }
+
+        override fun observeWardrobeMixDistribution(): Flow<WardrobeMixDistribution> =
+            combine(
+                dao.observeActiveGarmentCountByMaterial(),
+                dao.observeActiveGarmentCountByFabric(),
+                dao.observeActiveGarmentCountByOccasion(),
+                dao.observeActiveGarmentCountWithoutOccasion(),
+            ) { materials, fabrics, occasions, withoutOccasion ->
+                WardrobeMixDistribution(
+                    materials = materials.map { MaterialDistributionEntry(MaterialId(it.materialId), it.garmentCount) },
+                    fabrics = fabrics.map { FabricDistributionEntry(FabricId(it.fabricId), it.garmentCount) },
+                    occasions = occasions.map { OccasionCoverageEntry(OccasionId(it.occasionId), it.garmentCount) },
+                    garmentsWithoutOccasion = withoutOccasion,
+                )
+            }
     }
 
 private data class PartialBreakdownRows(

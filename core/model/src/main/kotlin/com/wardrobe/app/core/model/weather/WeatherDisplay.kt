@@ -41,6 +41,25 @@ fun WeatherSnapshot.headline(unit: TemperatureUnit): String {
     return listOfNotNull(current, conditionPhrase).joinToString(" ").ifBlank { "Weather details aren't available." }
 }
 
+/** [headline]'s counterpart for a date that only has a daily forecast (high/
+ * low) rather than a live current reading — every calendar date other than
+ * today (M20). [headline] itself always reads "Weather details aren't
+ * available." for these snapshots since [WeatherSnapshot.currentTempC] is
+ * `null` whenever the forecast entry isn't for today; this builds an
+ * equally honest line from [WeatherSnapshot.tempLowC]/[WeatherSnapshot.tempHighC]
+ * instead, e.g. "18°C–24°C. Rain expected." */
+fun WeatherSnapshot.dailyHeadline(unit: TemperatureUnit): String {
+    val range =
+        when {
+            tempLowC != null && tempHighC != null -> "${displayTemp(tempLowC, unit)}–${displayTemp(tempHighC, unit)}"
+            tempHighC != null -> displayTemp(tempHighC, unit)
+            tempLowC != null -> displayTemp(tempLowC, unit)
+            else -> null
+        }
+    val conditionPhrase = condition?.let(::conditionPhrase)
+    return listOfNotNull(range, conditionPhrase).joinToString(" ").ifBlank { "Weather details aren't available." }
+}
+
 fun displayTemp(
     celsius: Double,
     unit: TemperatureUnit,

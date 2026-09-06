@@ -31,3 +31,11 @@ data class TryOnRoute(
 data class MaskEditorRoute(
     val garmentId: Long,
 )
+
+/** M12's Try-On Review comparison viewer — reached from a per-layer
+ * "Compare with Cloud" action inside [TryOnRoute], the same way
+ * [MaskEditorRoute] is reached from "Edit mask." */
+@Serializable
+data class TryOnCompareRoute(
+    val garmentId: Long,
+)

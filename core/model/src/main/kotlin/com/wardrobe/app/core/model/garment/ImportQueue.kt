@@ -9,11 +9,20 @@ import java.time.Instant
  * `ImportQueueRepository`'s KDoc). `SAVING` found on resume after a restart
  * falls back to [READY_FOR_REVIEW] rather than silently losing the user's
  * entered metadata — see `feature:capture`'s `GarmentImportQueueViewModel`.
+ *
+ * [EXTRACTING_GARMENT] through [GENERATING_METADATA] are Add-to-Wardrobe
+ * v2's (ADR-012) real, per-stage progress statuses — replacing v1's single
+ * `REMOVING_BACKGROUND` catch-all so the queue screen can show the user
+ * what's actually happening (Constitution rule 4: real progress, never a
+ * generic spinner standing in for four different operations).
  */
 enum class ImportQueueItemStatus {
     PENDING,
     IMPORTING,
-    REMOVING_BACKGROUND,
+    EXTRACTING_GARMENT,
+    ENHANCING_PRESENTATION,
+    RECONSTRUCTING_OCCLUSIONS,
+    GENERATING_METADATA,
     READY_FOR_REVIEW,
     SAVING,
     COMPLETED,

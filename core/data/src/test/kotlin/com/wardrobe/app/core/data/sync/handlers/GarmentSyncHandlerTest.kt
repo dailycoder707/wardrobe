@@ -44,6 +44,8 @@ class GarmentSyncHandlerTest {
                 db.brandDao(),
                 db.materialDao(),
                 db.tagDao(),
+                db.fabricDao(),
+                db.occasionDao(),
             )
         resolver =
             SyncIdResolver { table, syncId ->
@@ -54,6 +56,8 @@ class GarmentSyncHandlerTest {
                     "materials" -> db.materialDao().getBySyncId(syncId)?.id
                     "tags" -> db.tagDao().getBySyncId(syncId)?.id
                     "garments" -> db.garmentDao().getBySyncId(syncId)?.id
+                    "fabrics" -> db.fabricDao().getBySyncId(syncId)?.id
+                    "occasions" -> db.occasionDao().getBySyncId(syncId)?.id
                     else -> null
                 }
             }
@@ -99,7 +103,13 @@ class GarmentSyncHandlerTest {
             "materials": [],
             "tagSyncIds": [],
             "seasons": [],
-            "dressCodes": []
+            "dressCodes": [],
+            "secondaryColorSyncId": null,
+            "neckline": null,
+            "gender": null,
+            "waterproofLevel": null,
+            "fabrics": [],
+            "occasionSyncIds": []
         }
         """.trimIndent()
 

@@ -7,10 +7,21 @@
     data to the user's Google account. Excluding the DB, images, DataStore file and
     all SharedPreferences here is what actually enforces "no cloud" for this app on
     modern Android — see Phase 1 Section 24 / Section 0 pushback #2.
-  - device-transfer: intentionally left un-excluded. A cable/Wi-Fi-Direct transfer
-    to a new phone during setup is not a cloud copy, and losing a wardrobe's worth
-    of photos on every phone upgrade because the user forgot to run the in-app
-    export first is a worse outcome than allowing this specific, non-cloud channel.
+  - device-transfer: mostly left un-excluded. A cable/Wi-Fi-Direct transfer to a
+    new phone during setup is not a cloud copy, and losing a wardrobe's worth of
+    photos on every phone upgrade because the user forgot to run the in-app export
+    first is a worse outcome than allowing this specific, non-cloud channel.
+
+  RC1 hardening: `core:ai`'s `EncryptedApiKeyStore` (`ai_api_keys.xml`,
+  `androidx.security.crypto`'s `EncryptedSharedPreferences`) is excluded from
+  device-transfer too, found during RC1's security audit — its `MasterKey` is
+  generated inside the *old* device's Android Keystore and cannot itself transfer
+  (Keystore keys are hardware-bound, non-exportable by design), so copying the
+  encrypted file's raw bytes to a new device would leave undecryptable ciphertext
+  behind — a real, documented `EncryptedSharedPreferences` failure mode that can
+  throw on first read rather than degrading gracefully. Re-entering a cloud
+  provider's API key on a new device is the correct, expected outcome for a
+  Keystore-bound secret, the same way it would be for any other app.
 -->
 <data-extraction-rules>
     <cloud-backup>
@@ -20,7 +31,6 @@
         <exclude domain="sharedpref" path="." />
     </cloud-backup>
     <device-transfer>
-        <!-- No excludes: full local dataset transfers directly between the user's
-             own devices, never touching a server. -->
+        <exclude domain="sharedpref" path="ai_api_keys.xml" />
     </device-transfer>
 </data-extraction-rules>

@@ -3,7 +3,10 @@ package com.wardrobe.app.core.model.stats
 import com.wardrobe.app.core.model.common.BrandId
 import com.wardrobe.app.core.model.common.CategoryId
 import com.wardrobe.app.core.model.common.ColorId
+import com.wardrobe.app.core.model.common.FabricId
 import com.wardrobe.app.core.model.common.GarmentId
+import com.wardrobe.app.core.model.common.MaterialId
+import com.wardrobe.app.core.model.common.OccasionId
 import com.wardrobe.app.core.model.common.OutfitId
 import com.wardrobe.app.core.model.garment.DressCode
 import com.wardrobe.app.core.model.garment.Season
@@ -103,4 +106,56 @@ data class GarmentCombinationEntry(
     val garmentIdA: GarmentId,
     val garmentIdB: GarmentId,
     val pairCount: Int,
+)
+
+/** M21 — active-garment counts by fiber-content material (Cotton, Wool…),
+ * only for materials genuinely tagged on at least one garment — a material
+ * nobody owns has nothing to report, unlike [OccasionCoverageEntry] where a
+ * zero-count occasion is itself the useful signal. */
+data class MaterialDistributionEntry(
+    val materialId: MaterialId,
+    val garmentCount: Int,
+)
+
+/** M21 — active-garment counts by weave/construction fabric (Denim, Jersey…),
+ * deliberately distinct from [MaterialDistributionEntry] (core:model's
+ * `Material`/`Fabric` split, M19 ADR-018). */
+data class FabricDistributionEntry(
+    val fabricId: FabricId,
+    val garmentCount: Int,
+)
+
+/** M21 — how many active garments are tagged for each real [Occasion]
+ * reference row, including occasions with zero garments (the coverage gap
+ * itself) — the same "count including zero" shape [ClosetGap] already uses
+ * for season/dress-code coverage. */
+data class OccasionCoverageEntry(
+    val occasionId: OccasionId,
+    val garmentCount: Int,
+)
+
+/** M21 — bundles two previously-separate, parameterless "orphan" queries
+ * (a saved outfit never once worn; a garment never placed in any saved
+ * outfit) behind one [StatsRepository][com.wardrobe.app.core.domain.repository.StatsRepository]
+ * method rather than two — the same fold used for [WardrobeMixDistribution],
+ * and for the same reason (keeping that interface under detekt's
+ * `TooManyFunctions` threshold without an unprecedented suppression).
+ * Scoped to `feature:stats`, the sole consumer of both fields. */
+data class WardrobeUsageGaps(
+    val neverWornOutfitIds: List<OutfitId>,
+    val garmentsMissingOutfits: List<GarmentId>,
+)
+
+/** M21 — bundles [MaterialDistributionEntry]/[FabricDistributionEntry]/
+ * [OccasionCoverageEntry] behind one [StatsRepository][com.wardrobe.app.core.domain.repository.StatsRepository]
+ * method rather than three, the same "fold into the model" choice this
+ * type's own Phase 9 fields already made — see that method's KDoc. */
+data class WardrobeMixDistribution(
+    val materials: List<MaterialDistributionEntry>,
+    val fabrics: List<FabricDistributionEntry>,
+    val occasions: List<OccasionCoverageEntry>,
+    /** Part 6 — how many active garments have no occasion tagged at all,
+     * disclosed honestly rather than letting [occasions] imply full
+     * coverage. */
+    val garmentsWithoutOccasion: Int,
 )

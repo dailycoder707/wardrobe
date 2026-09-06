@@ -2,11 +2,14 @@ package com.wardrobe.app.feature.stats.insights
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.material3.CircularProgressIndicator
@@ -27,6 +30,15 @@ import com.wardrobe.app.core.model.stats.StatsWindow
 import com.wardrobe.app.feature.stats.common.InsightItemUiModel
 import com.wardrobe.app.feature.stats.common.InsightSectionCard
 import com.wardrobe.app.feature.stats.common.charts.InsightRow
+
+/** M21 Part 16 — the same inline `BoxWithConstraints`/`maxWidth &gt; maxHeight`
+ * idiom `feature:calendar`/`GarmentDetailScreen`/`OutfitBuilderScreen` already
+ * use; there's no shared `WindowSizeClass` utility in this codebase to reuse
+ * instead (confirmed by inspection), so this follows the established
+ * per-screen pattern rather than introducing a new one. A wide/landscape
+ * pane caps each column's width so charts and cards stay a readable size
+ * instead of one giant stretched column. */
+private const val WIDE_LAYOUT_MIN_DP = 840
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -73,6 +85,32 @@ private fun InsightsContent(
     onOpenHealth: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    BoxWithConstraints(modifier = modifier, contentAlignment = Alignment.TopCenter) {
+        // A wide/tablet pane caps the reading column instead of stretching
+        // every card and chart edge-to-edge — Part 16's "avoid giant
+        // stretched cards, maintain readable chart dimensions."
+        val columnWidthModifier =
+            if (maxWidth.value > WIDE_LAYOUT_MIN_DP) Modifier.width(WIDE_LAYOUT_MIN_DP.dp) else Modifier.fillMaxWidth()
+        InsightsList(
+            state = state,
+            onWindowChange = onWindowChange,
+            onOpenItem = onOpenItem,
+            onOpenStory = onOpenStory,
+            onOpenHealth = onOpenHealth,
+            modifier = columnWidthModifier.fillMaxSize(),
+        )
+    }
+}
+
+@Composable
+private fun InsightsList(
+    state: InsightsUiState,
+    onWindowChange: (StatsWindow) -> Unit,
+    onOpenItem: (InsightItemUiModel) -> Unit,
+    onOpenStory: () -> Unit,
+    onOpenHealth: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     LazyColumn(
         modifier = modifier,
         contentPadding = PaddingValues(16.dp),
@@ -83,6 +121,7 @@ private fun InsightsContent(
         item { UsageOverviewSection(state) }
         item { FavoritesSection(state) }
         item { DistributionSections(state) }
+        item { WardrobeMixSection(state) }
         item { ActivityChartSections(state) }
         insightListSections(state.lists, onOpenItem)
     }
@@ -128,15 +167,26 @@ private fun LazyListScope.insightListSections(
     lists: InsightsListsUiState,
     onOpenItem: (InsightItemUiModel) -> Unit,
 ) {
-    insightListSection("Most Worn", "Your everyday favorites.", lists.mostWorn, onOpenItem)
-    insightListSection("Least Worn", "Pieces that could use a little more love.", lists.leastWorn, onOpenItem)
+    // Most/Least Worn and cost-per-wear are lifetime totals, not scoped to
+    // the period selector above — a garment's total wear count and what it
+    // cost you don't reset each window, unlike every other section here.
+    // Said explicitly so the selector's presence never implies otherwise
+    // (Part 2's "the selected period must consistently affect every
+    // statistic that is supposed to be period-dependent" — these aren't).
+    insightListSection("Most Worn", "Your everyday favorites, all time.", lists.mostWorn, onOpenItem)
+    insightListSection("Least Worn", "Pieces that could use a little more love, all time.", lists.leastWorn, onOpenItem)
     insightListSection(
         "Waiting to Be Worn",
         "Nothing wrong with these — just haven't been reached for lately.",
         lists.dormantAndNeverWorn,
         onOpenItem,
     )
-    insightListSection("Best Value", "Getting the most wears out of what you paid.", lists.costPerWear, onOpenItem)
+    insightListSection(
+        "Best Value",
+        "Getting the most wears out of what you paid, all time.",
+        lists.costPerWear,
+        onOpenItem,
+    )
     insightListSection(
         "Missing an Outfit",
         "Try building a look around one of these.",
@@ -161,7 +211,7 @@ private fun LazyListScope.insightListSections(
     insightListSection("Least Versatile", "These haven't found many looks yet.", lists.leastVersatile, onOpenItem)
     insightListSection(
         "Highest Cost Per Wear",
-        "These could use a few more wears to earn their keep.",
+        "These could use a few more wears to earn their keep, all time.",
         lists.costPerWearLeastValuable,
         onOpenItem,
     )

@@ -44,7 +44,31 @@ data class HomeAssistantUiState(
     val todaysOccasionName: String? = null,
     val wardrobeHealthScore: Int? = null,
     val rotationScore: Int? = null,
-    val itemsNeedingAttentionCount: Int = 0,
+    /** M22 fix: `null` means "not resolved yet," distinct from a real `0`
+     * (wardrobe genuinely needs no attention). Previously this defaulted to
+     * a non-nullable `0`, so [AttentionItemsCard] couldn't tell "still
+     * loading" from "loaded, healthy" and silently hid itself in both
+     * cases — the same null-means-unknown pattern [wardrobeHealthScore]
+     * above already uses correctly. */
+    val itemsNeedingAttentionCount: Int? = null,
     val upcomingTripReminder: String? = null,
     val laundryReminderCount: Int = 0,
+    /** M15 Part 5 — real rows from `ai_call_log`, newest first; empty (not
+     * fabricated placeholder rows) until the assistant has actually run an
+     * AI capability at least once. Now collected live (M18), not a one-shot
+     * snapshot, so a capability call finishing while Home stays open is
+     * reflected without leaving/reopening the screen. */
+    val recentAiActivity: List<AiActivityUiModel> = emptyList(),
+    /** M18 — a present-tense label for the single, real, currently in-flight
+     * `AiJobManager` job (if any), e.g. "Analyzing garment…". `null`
+     * whenever nothing is genuinely running — never a fabricated "thinking"
+     * state. When more than one job is in flight, the earliest-started one
+     * is shown (the one a user is most likely already waiting on). */
+    val activeAiOperationLabel: String? = null,
+    /** How many of the app's AI capabilities currently have Cloud AI
+     * configured+consented (`AiProviderConfig.isCloudReady()`) versus the
+     * total capability count — real, derived, never a guess at what the
+     * user "probably" wants. */
+    val cloudAiConfiguredCount: Int = 0,
+    val totalAiCapabilities: Int = 0,
 )

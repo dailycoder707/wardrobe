@@ -40,8 +40,15 @@ class Migration2To3Test {
         val migratedDb =
             Room
                 .databaseBuilder(context, WardrobeDatabase::class.java, dbFile.absolutePath)
-                .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
-                .build()
+                .addMigrations(
+                    MIGRATION_2_3,
+                    MIGRATION_3_4,
+                    MIGRATION_4_5,
+                    MIGRATION_5_6,
+                    MIGRATION_6_7,
+                    MIGRATION_7_8,
+                    MIGRATION_8_9,
+                ).build()
         val supportDb = migratedDb.openHelper.writableDatabase
 
         supportDb.query("SELECT name, isInLaundry FROM garments WHERE id = 1").use { cursor ->
