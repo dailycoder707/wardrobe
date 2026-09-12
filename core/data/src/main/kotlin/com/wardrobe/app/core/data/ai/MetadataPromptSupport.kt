@@ -14,11 +14,10 @@ import com.wardrobe.app.core.model.garment.WaterproofLevel
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.floatOrNull
-import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
 
 private val METADATA_JSON = Json { ignoreUnknownKeys = true }
 
@@ -132,17 +131,28 @@ private fun optionLine(
 internal const val METADATA_USER_PROMPT = "Analyze this garment and return the JSON described in your instructions."
 
 /** Never crashes or fabricates on a malformed/unexpected response — an
- * unparseable body, a missing "suggestions" array, an unknown field name,
- * or an out-of-range confidence each simply drop that one entry
- * (Constitution rule 4), rather than the whole response failing loudly or
- * silently coercing bad data into a guess. */
+ * unparseable body, a missing "suggestions" array, an entry that isn't an
+ * object at all, a field/value that is an object or array where a primitive
+ * belongs, an unknown field name, or an out-of-range confidence each simply
+ * drop that one entry (Constitution rule 4), rather than the whole response
+ * failing loudly or silently coercing bad data into a guess.
+ *
+ * The shape checks are deliberately `as?` casts rather than kotlinx's
+ * `.jsonObject`/`.jsonPrimitive` accessors: those *throw* on the wrong
+ * element type, and a provider asked for JSON guarantees only valid JSON,
+ * never the right shape. A throw here escapes `GarmentMetadataEngineRouter`
+ * and fails the whole photo import instead of degrading to on-device —
+ * exactly the "cloud degrades a capability, it never breaks one" guarantee
+ * this layer exists to keep. */
 internal fun parseMetadataSuggestions(
     rawResponseText: String,
     provenance: AiResultProvenance,
 ): List<MetadataSuggestion> {
     val root = runCatching { METADATA_JSON.parseToJsonElement(rawResponseText).jsonObject }.getOrNull()
     val suggestionsArray = root?.get("suggestions") as? JsonArray
-    return suggestionsArray?.mapNotNull { element -> parseSingleSuggestion(element.jsonObject, provenance) }.orEmpty()
+    return suggestionsArray
+        ?.mapNotNull { element -> (element as? JsonObject)?.let { parseSingleSuggestion(it, provenance) } }
+        .orEmpty()
 }
 
 private fun parseSingleSuggestion(
@@ -150,11 +160,14 @@ private fun parseSingleSuggestion(
     provenance: AiResultProvenance,
 ): MetadataSuggestion? {
     val field =
-        obj["field"]
-            ?.jsonPrimitive
-            ?.contentOrNull
-            ?.let { name -> runCatching { MetadataField.valueOf(name) }.getOrNull() }
-    val value = obj["value"]?.jsonPrimitive?.contentOrNull?.takeIf { it.isNotBlank() }
-    val confidence = obj["confidence"]?.jsonPrimitive?.floatOrNull?.takeIf { it in 0f..1f }
+        obj.primitive("field")?.contentOrNull?.let { name ->
+            runCatching { MetadataField.valueOf(name) }.getOrNull()
+        }
+    val value = obj.primitive("value")?.contentOrNull?.takeIf { it.isNotBlank() }
+    val confidence = obj.primitive("confidence")?.floatOrNull?.takeIf { it in 0f..1f }
     return if (field != null && value != null) MetadataSuggestion(field, value, confidence, provenance) else null
 }
+
+/** `null` — never a throw — when the key is absent or holds an object/array
+ * where this response shape requires a primitive. */
+private fun JsonObject.primitive(key: String): JsonPrimitive? = this[key] as? JsonPrimitive

@@ -16,10 +16,10 @@ import com.wardrobe.app.core.model.styling.SuggestionContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.floatOrNull
 import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.longOrNull
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -48,7 +48,7 @@ class CloudStylingEngine
             count: Int,
             anchorGarmentId: GarmentId? = null,
         ): List<ScoredOutfit> {
-            val image = inspirationImage ?: stylingContextFingerprintBitmap(input, context)
+            val image = inspirationImage ?: stylingContextFingerprintBitmap(input, context, anchorGarmentId)
             val result =
                 aiGateway.runVisionPrompt(
                     dispatchContext,
@@ -156,22 +156,24 @@ private data class ParsedCloudOutfit(
 )
 
 /** Never crashes or fabricates on a malformed/unexpected response — an
- * unparseable body, a missing "outfits" array, or a non-numeric pick each
- * simply drop that one entry (Constitution rule 4), mirroring
- * [com.wardrobe.app.core.data.ai.parseMetadataSuggestions]'s discipline. */
+ * unparseable body, a missing "outfits" array, an entry that isn't an object
+ * at all, or a non-numeric pick each simply drop that one entry (Constitution
+ * rule 4), mirroring [com.wardrobe.app.core.data.ai.parseMetadataSuggestions]'s
+ * discipline, including its use of `as?` casts over kotlinx's throwing
+ * `.jsonObject`/`.jsonPrimitive` accessors — see that function's KDoc. */
 private fun parseCloudOutfitSuggestions(rawResponseText: String): List<ParsedCloudOutfit> {
     val root = runCatching { STYLING_JSON.parseToJsonElement(rawResponseText).jsonObject }.getOrNull()
     val outfitsArray = root?.get("outfits") as? JsonArray
-    return outfitsArray?.mapNotNull { element -> parseSingleCloudOutfit(element.jsonObject) }.orEmpty()
+    return outfitsArray?.mapNotNull { element -> (element as? JsonObject)?.let(::parseSingleCloudOutfit) }.orEmpty()
 }
 
 private fun parseSingleCloudOutfit(obj: JsonObject): ParsedCloudOutfit? {
     val picks =
         (obj["picks"] as? JsonObject)
-            ?.mapNotNull { (slotName, value) -> value.jsonPrimitive.longOrNull?.let { slotName to it } }
+            ?.mapNotNull { (slotName, value) -> (value as? JsonPrimitive)?.longOrNull?.let { slotName to it } }
             ?.toMap()
             .orEmpty()
-    val reasoning = obj["reasoning"]?.jsonPrimitive?.contentOrNull.orEmpty()
-    val confidence = obj["confidence"]?.jsonPrimitive?.floatOrNull?.takeIf { it in 0f..1f }
+    val reasoning = (obj["reasoning"] as? JsonPrimitive)?.contentOrNull.orEmpty()
+    val confidence = (obj["confidence"] as? JsonPrimitive)?.floatOrNull?.takeIf { it in 0f..1f }
     return if (picks.isNotEmpty()) ParsedCloudOutfit(picks, reasoning, confidence) else null
 }

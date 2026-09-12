@@ -89,6 +89,15 @@ mlkitPoseDetection = "18.0.0-beta5"
 mlkitTextRecognition = "16.0.1"
 mlkitFaceDetection = "16.1.7"
 
+# --- EXIF ---
+# androidx's own ExifInterface, not the platform `android.media.ExifInterface`:
+# the platform implementation has known parsing vulnerabilities on older OS
+# versions (flagged by lint's `ExifInterface` check), and this app points it
+# straight at arbitrary user-supplied photos from the camera and the gallery
+# at minSdk 26. The androidx implementation is a pure-Java parser shipped with
+# the app, so every device gets the same fixed code regardless of OS version.
+exifinterface = "1.4.1"
+
 # --- Coil ---
 coil = "3.5.0"
 
@@ -192,6 +201,10 @@ androidx-camera-view = { group = "androidx.camera", name = "camera-view", versio
 # in the plain androidx.activity artifact, not activity-compose. Same version line
 # as activityCompose (androidx.activity ships both artifacts in lockstep).
 androidx-activity = { group = "androidx.activity", name = "activity-ktx", version.ref = "activityCompose" }
+
+# EXIF orientation reading on user-supplied photos — see the version comment
+# above for why this replaces the platform `android.media.ExifInterface`.
+androidx-exifinterface = { group = "androidx.exifinterface", name = "exifinterface", version.ref = "exifinterface" }
 
 # ML Kit Subject Segmentation (Phase 5b, ADR-008) — on-device only, no server call;
 # see the version comment above for why this is pinned to a beta.

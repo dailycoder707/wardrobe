@@ -34,6 +34,12 @@ dependencies {
     // Photo Picker (ActivityResultContracts.PickVisualMedia) — gallery import.
     implementation(libs.androidx.activity)
 
+    // EXIF orientation on user-supplied photos — androidx's own parser rather
+    // than the platform `android.media.ExifInterface`, which lint flags for
+    // known parsing vulnerabilities on older OS versions this app still
+    // supports at minSdk 26.
+    implementation(libs.androidx.exifinterface)
+
     // Hilt — this module has `@Inject constructor` classes (GarmentImagePipeline,
     // MlKitBackgroundRemover, ImageFileStore) and a `@Module` binding
     // BackgroundRemover, so it needs its own KSP/Hilt processing, same reason

@@ -2,6 +2,7 @@ package com.wardrobe.app.core.data.ai
 
 import android.graphics.Bitmap
 import com.wardrobe.app.core.data.repository.styling.EngineInput
+import com.wardrobe.app.core.model.common.GarmentId
 import com.wardrobe.app.core.model.styling.SuggestionContext
 import java.security.MessageDigest
 
@@ -27,12 +28,24 @@ private const val GREEN_SHIFT = 8
  * unmodified cache lookup already behaves exactly like a
  * `(wardrobeHash, weatherHash, occasion, provider, model, promptVersion)`
  * key without a single line of Gateway code changing.
+ *
+ * [anchorGarmentId] is part of the seed for the same reason the other three
+ * fields are: it genuinely changes what is being asked for.
+ * `buildStylingSystemPrompt` puts the anchor in the *system prompt*, which the
+ * Gateway's cache key does not cover — so without it here, `suggestOutfits`
+ * (unanchored) and `suggestForItem` (anchored), and two differently-anchored
+ * requests, all collide on one cache row. The anchored caller is then served
+ * outfits that were never built around its anchor, every one of which
+ * `validateCloudOutfit`'s anchor check rejects, silently dropping the user to
+ * the on-device engine on a capability they configured and pay for.
  */
 internal fun stylingContextFingerprintBitmap(
     input: EngineInput,
     context: SuggestionContext,
+    anchorGarmentId: GarmentId? = null,
 ): Bitmap {
-    val seed = "${wardrobeHash(input)}::${weatherHash(input)}::${occasionHash(context)}"
+    val seed =
+        "${wardrobeHash(input)}::${weatherHash(input)}::${occasionHash(context)}::${anchorHash(anchorGarmentId)}"
     return fingerprintBitmapOf(seed)
 }
 
@@ -45,6 +58,8 @@ private fun weatherHash(input: EngineInput): String =
     input.weather?.let { "${it.apparentTempHighC}:${it.apparentTempLowC}:${it.condition}" } ?: "no-weather"
 
 private fun occasionHash(context: SuggestionContext): String = context.occasionId?.value?.toString() ?: "no-occasion"
+
+private fun anchorHash(anchorGarmentId: GarmentId?): String = anchorGarmentId?.value?.toString() ?: "no-anchor"
 
 private fun fingerprintBitmapOf(seed: String): Bitmap {
     val digest = MessageDigest.getInstance("SHA-256").digest(seed.toByteArray())

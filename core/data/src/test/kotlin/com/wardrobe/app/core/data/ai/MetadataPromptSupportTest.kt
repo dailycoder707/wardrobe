@@ -192,4 +192,47 @@ class MetadataPromptSupportTest {
 
         assertTrue(result.isEmpty())
     }
+
+    /** A provider asked for JSON returns *valid* JSON, not necessarily the
+     * right shape — `response_format: json_object` guarantees the former only.
+     * A suggestions entry that is a bare string, or a field/value that is an
+     * object or array instead of a primitive, is exactly the kind of
+     * plausible-but-wrong output a vision model produces, and must drop that
+     * entry rather than throw: throwing escapes `GarmentMetadataEngineRouter`
+     * and fails the whole photo import instead of degrading to on-device. */
+    @Test
+    fun `a suggestions entry that is a bare string drops that entry rather than throwing`() {
+        val result = parseMetadataSuggestions("""{"suggestions":["Blue shirt"]}""", PROVENANCE)
+
+        assertTrue(result.isEmpty())
+    }
+
+    @Test
+    fun `a field given as an object drops that entry rather than throwing`() {
+        val body = """{"suggestions":[{"field":{"name":"CATEGORY"},"value":"Dress","confidence":0.9}]}"""
+
+        val result = parseMetadataSuggestions(body, PROVENANCE)
+
+        assertTrue(result.isEmpty())
+    }
+
+    @Test
+    fun `a value given as an array drops that entry rather than throwing`() {
+        val body = """{"suggestions":[{"field":"CATEGORY","value":["Dress"],"confidence":0.9}]}"""
+
+        val result = parseMetadataSuggestions(body, PROVENANCE)
+
+        assertTrue(result.isEmpty())
+    }
+
+    @Test
+    fun `a malformed entry never discards the well-formed entries beside it`() {
+        val body =
+            """{"suggestions":[["junk"],{"field":"CATEGORY","value":"Dress","confidence":0.9}]}"""
+
+        val result = parseMetadataSuggestions(body, PROVENANCE)
+
+        assertEquals(1, result.size)
+        assertEquals("Dress", result.first().value)
+    }
 }

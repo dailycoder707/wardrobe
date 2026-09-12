@@ -2,7 +2,7 @@ package com.wardrobe.app.core.image.pipeline
 
 import android.graphics.Bitmap
 import android.graphics.Matrix
-import android.media.ExifInterface
+import androidx.exifinterface.media.ExifInterface
 import java.io.File
 
 /**
@@ -17,7 +17,17 @@ object ExifOrientation {
     /** A file with no EXIF segment at all (common for images produced by
      * in-app processing rather than a camera) is not corrupted — it simply
      * has nothing to correct, so any failure reading it falls back to
-     * [ExifInterface.ORIENTATION_NORMAL] rather than failing the pipeline. */
+     * [ExifInterface.ORIENTATION_NORMAL] rather than failing the pipeline.
+     *
+     * [ExifInterface.ORIENTATION_UNDEFINED] is normalized to
+     * [ExifInterface.ORIENTATION_NORMAL] for the same reason, and is a real
+     * case rather than a theoretical one: androidx's parser reports a tag it
+     * cannot make sense of as `UNDEFINED` (0) instead of returning the
+     * requested default, so without this the documented "falls back to
+     * ORIENTATION_NORMAL" guarantee above would simply not be true. Both
+     * values mean "nothing to rotate", and [correct] already treats them
+     * identically — this keeps what [readOrientation] itself returns honest
+     * for any caller that reads it directly. */
     fun readOrientation(file: File): Int =
         runCatching {
             ExifInterface(file.path).getAttributeInt(
@@ -25,6 +35,8 @@ object ExifOrientation {
                 ExifInterface.ORIENTATION_NORMAL,
             )
         }.getOrDefault(ExifInterface.ORIENTATION_NORMAL)
+            .takeUnless { it == ExifInterface.ORIENTATION_UNDEFINED }
+            ?: ExifInterface.ORIENTATION_NORMAL
 
     fun correct(
         bitmap: Bitmap,
